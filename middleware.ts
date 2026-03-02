@@ -19,10 +19,18 @@ const routePermissions = {
     "/dashboard": ["admin", "nurse", "physician", "patient"],
 }
 
+// Development mode: allow all dashboard access for testing
+const isDevelopment = process.env.NODE_ENV === "development"
+
 export default withAuth(
     function middleware(req) {
         const { pathname } = req.nextUrl
         const userRole = req.nextauth.token?.role
+
+        // In development, allow all dashboard access for testing
+        if (isDevelopment && pathname.startsWith("/dashboard")) {
+            return NextResponse.next()
+        }
 
         // Check if the current route requires specific permissions
         for (const [route, allowedRoles] of Object.entries(routePermissions)) {
@@ -43,17 +51,32 @@ export default withAuth(
                 if (
                     req.nextUrl.pathname === "/" ||
                     req.nextUrl.pathname === "/login" ||
-                    req.nextUrl.pathname.startsWith("/api/auth")
+                    req.nextUrl.pathname.startsWith("/api/auth") ||
+                    req.nextUrl.pathname.startsWith("/_next") ||
+                    req.nextUrl.pathname.startsWith("/images") ||
+                    req.nextUrl.pathname.startsWith("/icon")
                 ) {
                     return true
                 }
+
+                // In development mode, allow dashboard access for testing
+                if (isDevelopment && req.nextUrl.pathname.startsWith("/dashboard")) {
+                    return true
+                }
+
                 // Require authentication for all other routes
                 return !!token
             },
+        },
+        pages: {
+            signIn: "/login",
         },
     }
 )
 
 export const config = {
-    matcher: ["/((?!_next/static|_next/image|favicon.ico|public).*)"],
+    matcher: [
+        "/dashboard/:path*",
+        "/api/((?!auth).)*", // Match all API routes except auth
+    ],
 }
