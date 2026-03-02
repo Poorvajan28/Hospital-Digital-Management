@@ -23,15 +23,14 @@ import { Button } from "@/components/ui/button"
 import { useState } from "react"
 
 const navItems = [
-  { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
-  { href: "/dashboard/staff", label: "Staff", icon: Users },
-  { href: "/dashboard/patients", label: "Patients", icon: Activity },
-  { href: "/dashboard/appointments", label: "Appointments", icon: CalendarDays },
-  { href: "/dashboard/medical-records", label: "Medical Records", icon: FileText },
+  { href: "/dashboard", label: "Resource Dashboard", icon: LayoutDashboard },
+  { href: "/dashboard/beds", label: "Bed Management", icon: BedDouble },
+  { href: "/dashboard/equipment", label: "Equipment", icon: Package },
   { href: "/dashboard/blood-bank", label: "Blood Bank", icon: Droplets },
-  { href: "/dashboard/inventory", label: "Inventory", icon: Package },
+  { href: "/dashboard/staff", label: "Staff Schedule", icon: Users },
+  { href: "/dashboard/appointments", label: "Appointments", icon: CalendarDays },
+  { href: "/dashboard/inventory", label: "Medical Inventory", icon: Activity },
   { href: "/dashboard/departments", label: "Departments", icon: Building2 },
-  { href: "/dashboard/rooms", label: "Rooms & Beds", icon: BedDouble },
 ]
 
 function NavLink({
