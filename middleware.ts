@@ -19,24 +19,16 @@ const routePermissions = {
     "/dashboard": ["admin", "nurse", "physician", "patient"],
 }
 
-// Development mode: allow all dashboard access for testing
-const isDevelopment = process.env.NODE_ENV === "development"
-
 export default withAuth(
     function middleware(req) {
         const { pathname } = req.nextUrl
         const userRole = req.nextauth.token?.role
 
-        // In development, allow all dashboard access for testing
-        if (isDevelopment && pathname.startsWith("/dashboard")) {
-            return NextResponse.next()
-        }
-
         // Check if the current route requires specific permissions
         for (const [route, allowedRoles] of Object.entries(routePermissions)) {
             if (pathname.startsWith(route)) {
                 if (!userRole || !allowedRoles.includes(userRole)) {
-                    // Redirect to unauthorized page or dashboard
+                    // Redirect to unauthorized page
                     return NextResponse.redirect(new URL("/unauthorized", req.url))
                 }
             }
@@ -51,16 +43,13 @@ export default withAuth(
                 if (
                     req.nextUrl.pathname === "/" ||
                     req.nextUrl.pathname === "/login" ||
+                    req.nextUrl.pathname === "/unauthorized" ||
                     req.nextUrl.pathname.startsWith("/api/auth") ||
                     req.nextUrl.pathname.startsWith("/_next") ||
                     req.nextUrl.pathname.startsWith("/images") ||
-                    req.nextUrl.pathname.startsWith("/icon")
+                    req.nextUrl.pathname.startsWith("/icon") ||
+                    req.nextUrl.pathname.startsWith("/favicon")
                 ) {
-                    return true
-                }
-
-                // In development mode, allow dashboard access for testing
-                if (isDevelopment && req.nextUrl.pathname.startsWith("/dashboard")) {
                     return true
                 }
 
@@ -70,6 +59,7 @@ export default withAuth(
         },
         pages: {
             signIn: "/login",
+            error: "/login",
         },
     }
 )
