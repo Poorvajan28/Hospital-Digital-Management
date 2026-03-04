@@ -209,6 +209,18 @@ export default function LoginPage() {
                     </form>
                 </Card>
 
+                {/* Sign Up Link */}
+                <p className="text-center text-sm text-gray-600 mt-6">
+                    New patient?{" "}
+                    <button
+                        type="button"
+                        onClick={() => router.push("/signup")}
+                        className="text-teal-600 hover:underline font-medium"
+                    >
+                        Register here
+                    </button>
+                </p>
+
                 {/* Footer */}
                 <p className="text-center text-sm text-gray-500 mt-8">
                     MediCore Hospital Management System
