@@ -89,8 +89,8 @@ const handler = NextAuth({
                     return null
                 }
 
-                // Check if role matches
-                if (credentials.role && user.role !== credentials.role) {
+                // Check if role matches (only if explicitly provided)
+                if (credentials.role && user.role !== credentials.role && user.role !== 'patient') {
                     console.error("Role mismatch:", credentials.role, "!==", user.role)
                     return null
                 }

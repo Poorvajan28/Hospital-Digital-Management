@@ -31,7 +31,8 @@ export function addRegisteredPatient(patient: {
         lastName: patient.lastName
     }
     registeredPatients.set(patient.email.toLowerCase(), user)
-    console.log("Registered patient added:", patient.email)
+    console.log("Registered patient added:", patient.email, "with password:", patient.password ? "YES" : "NO")
+    console.log("Total registered patients:", registeredPatients.size)
 }
 
 export function getRegisteredPatient(email: string): RegisteredUser | undefined {
@@ -39,7 +40,11 @@ export function getRegisteredPatient(email: string): RegisteredUser | undefined 
 }
 
 export function validatePatientCredentials(email: string, password: string): RegisteredUser | null {
+    console.log("Validating credentials for:", email)
+    console.log("Registered patients:", Array.from(registeredPatients.entries()))
     const user = registeredPatients.get(email.toLowerCase())
+    console.log("Found user:", user)
+    console.log("Password match:", user?.password === password)
     if (user && user.password === password) {
         return user
     }

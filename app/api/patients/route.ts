@@ -121,6 +121,8 @@ export async function POST(request: NextRequest) {
       firstName: body?.firstName || "",
       lastName: body?.lastName || ""
     });
+    
+    console.log("Registration - received password:", body?.password ? "YES" : "NO", "password value:", body?.password);
 
     console.log("Using mock data fallback, patient registered:", mockPatient);
     return NextResponse.json(mockPatient, { status: 201 });
