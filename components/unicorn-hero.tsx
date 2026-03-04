@@ -13,9 +13,9 @@ export function UnicornHero() {
         className="object-cover"
         priority
       />
-      {/* Gradient Overlays - Balanced to show background while maintaining text readability */}
-      <div className="absolute inset-0 bg-gradient-to-b from-background/40 via-background/25 to-background/90" />
-      <div className="absolute inset-0 bg-gradient-to-r from-background/20 via-transparent to-background/10" />
+      {/* Gradient Overlays - Lighter to show background image clearly */}
+      <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/5 to-black/40" />
+      <div className="absolute inset-0 bg-gradient-to-r from-black/5 via-transparent to-black/5" />
       <div className="absolute inset-0 bg-gradient-to-tr from-primary/5 via-transparent to-primary/5" />
     </div>
   )
