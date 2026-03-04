@@ -1,5 +1,6 @@
 import NextAuth from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
+import { validatePatientCredentials, getRegisteredPatient } from "@/lib/registered-users"
 
 interface DemoUser {
     id: string
@@ -60,7 +61,24 @@ const handler = NextAuth({
                     return null
                 }
 
-                // Find user in demo users
+                // First, check if user is a registered patient
+                const registeredPatient = validatePatientCredentials(
+                    credentials.email,
+                    credentials.password
+                )
+
+                if (registeredPatient) {
+                    console.log("Authenticated registered patient:", registeredPatient.email)
+                    return {
+                        id: registeredPatient.id,
+                        email: registeredPatient.email,
+                        name: registeredPatient.name,
+                        role: registeredPatient.role,
+                        department: null
+                    }
+                }
+
+                // Then, check demo users
                 const user = demoUsers.find(
                     u => u.email.toLowerCase() === credentials.email.toLowerCase() &&
                         u.password === credentials.password

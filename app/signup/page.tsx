@@ -32,18 +32,6 @@ const generatePatientId = () => {
     return `${prefix}-${timestamp}${random}`;
 };
 
-// Generate a secure random password
-const generateSecurePassword = () => {
-    const length = 12;
-    const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
-    let password = "";
-    for (let i = 0; i < length; i++) {
-        const randomIndex = Math.floor(Math.random() * charset.length);
-        password += charset[randomIndex];
-    }
-    return password;
-};
-
 const steps = [
     { id: 1, name: "Personal Information", description: "Basic demographics" },
     { id: 2, name: "Contact Details", description: "Address & emergency contact" },
@@ -67,7 +55,8 @@ export default function SignupPage() {
         phone: "",
         dateOfBirth: "",
         gender: "",
-        password: generateSecurePassword(),
+        password: "",
+        confirmPassword: "",
 
         // Contact Details
         address: "",
@@ -109,6 +98,14 @@ export default function SignupPage() {
                 }
                 if (formData.phone.length < 10) {
                     setError("Please enter a valid phone number");
+                    return false;
+                }
+                if (!formData.password || formData.password.length < 8) {
+                    setError("Password must be at least 8 characters");
+                    return false;
+                }
+                if (formData.password !== formData.confirmPassword) {
+                    setError("Passwords do not match");
                     return false;
                 }
                 break;
@@ -190,7 +187,7 @@ export default function SignupPage() {
             }
 
             // Show success and redirect to login
-            alert(`Registration successful!\n\nYour Patient ID: ${patientId}\nYour Password: ${formData.password}\n\nPlease save these credentials for future login.`);
+            alert(`Registration successful!\n\nYour Patient ID: ${patientId}\n\nPlease login with your email and password.`);
             router.push("/login");
         } catch (err) {
             setError(err instanceof Error ? err.message : "An error occurred during registration");
@@ -289,6 +286,44 @@ export default function SignupPage() {
                                         <SelectItem value="other">Other</SelectItem>
                                     </SelectContent>
                                 </Select>
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label htmlFor="password">Create Password *</Label>
+                            <div className="relative">
+                                <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                                <Input
+                                    id="password"
+                                    type={showPassword ? "text" : "password"}
+                                    placeholder="Create a strong password"
+                                    className="pl-10 pr-10"
+                                    value={formData.password}
+                                    onChange={(e) => updateFormData("password", e.target.value)}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+                                >
+                                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                </button>
+                            </div>
+                            <p className="text-xs text-gray-500">Must be at least 8 characters</p>
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label htmlFor="confirmPassword">Confirm Password *</Label>
+                            <div className="relative">
+                                <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                                <Input
+                                    id="confirmPassword"
+                                    type={showPassword ? "text" : "password"}
+                                    placeholder="Confirm your password"
+                                    className="pl-10"
+                                    value={formData.confirmPassword}
+                                    onChange={(e) => updateFormData("confirmPassword", e.target.value)}
+                                />
                             </div>
                         </div>
 
@@ -567,8 +602,8 @@ export default function SignupPage() {
                             <div key={step.id} className="flex items-center">
                                 <div
                                     className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${currentStep >= step.id
-                                            ? "bg-teal-600 text-white"
-                                            : "bg-gray-200 text-gray-500"
+                                        ? "bg-teal-600 text-white"
+                                        : "bg-gray-200 text-gray-500"
                                         }`}
                                 >
                                     {currentStep > step.id ? (

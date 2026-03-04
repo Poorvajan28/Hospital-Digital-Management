@@ -68,8 +68,8 @@ export default function LoginPage() {
                     ? "Invalid email or password"
                     : "Authentication failed");
             } else if (result?.ok) {
-                router.push(callbackUrl);
-                router.refresh();
+                // Use window.location for reliable redirect after session is set
+                window.location.href = callbackUrl;
             }
         } catch {
             setError("An error occurred. Please try again.");
@@ -172,20 +172,31 @@ export default function LoginPage() {
                                 </div>
                             </div>
 
+                            {/* Forgot Password Link */}
+                            <div className="flex justify-end">
+                                <button
+                                    type="button"
+                                    onClick={() => router.push("/forgot-password")}
+                                    className="text-sm text-teal-600 hover:underline"
+                                >
+                                    Forgot Password?
+                                </button>
+                            </div>
+
                             {/* Demo Credentials Info */}
                             <div className="p-3 bg-blue-50 rounded-lg text-sm">
                                 <p className="font-medium text-blue-900 mb-1">Demo Credentials:</p>
                                 <p className="text-blue-700">
-                                    <strong>Patient:</strong> patient@example.com / patient123
-                                </p>
-                                <p className="text-blue-700">
-                                    <strong>Nurse:</strong> nurse@example.com / nurse123
+                                    <strong>Admin:</strong> admin@example.com / admin123
                                 </p>
                                 <p className="text-blue-700">
                                     <strong>Physician:</strong> doctor@example.com / doctor123
                                 </p>
                                 <p className="text-blue-700">
-                                    <strong>Admin:</strong> admin@example.com / admin123
+                                    <strong>Nurse:</strong> nurse@example.com / nurse123
+                                </p>
+                                <p className="text-blue-700 mt-2 pt-2 border-t border-blue-200">
+                                    <strong>New Patient?</strong> Register at the link below
                                 </p>
                             </div>
                         </CardContent>

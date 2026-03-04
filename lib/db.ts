@@ -1,43 +1,47 @@
-// Neon REST API Client for Serverless Functions
-const NEON_REST_URL = process.env.NEON_REST_URL || process.env.DATABASE_URL
-const NEON_API_KEY = process.env.NEON_API_KEY
+// PostgreSQL Database Client using node-postgres
+import { Pool } from 'pg'
 
-if (!NEON_REST_URL) {
-  throw new Error("NEON_REST_URL or DATABASE_URL is not set")
+// Create a connection pool with Neon-optimized settings
+export const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false,
+    // Use compat mode for libpq compatibility
+  },
+  // Connection settings optimized for serverless
+  connectionTimeoutMillis: 5000,
+  idleTimeoutMillis: 10000,
+  max: 5, // Limit connections for serverless
+})
+
+// Handle pool events
+pool.on('error', (err) => {
+  console.error('❌ Unexpected database pool error:', err.message)
+})
+
+// Test and reconnect function
+async function testConnection() {
+  try {
+    const client = await pool.connect()
+    console.log('✅ Database connected successfully')
+    client.release()
+  } catch (err: any) {
+    console.error('❌ Database connection failed:', err.message)
+  }
+}
+
+// Run connection test in development
+if (process.env.NODE_ENV === 'development') {
+  testConnection()
 }
 
 /**
- * Execute SQL query via Neon REST API (PostgREST)
+ * Execute a query and return results
  */
 export async function query<T = any>(sql: string, params?: any[]): Promise<T[]> {
-  // For REST API, we need to use rpc (stored procedures) or table endpoints
-  // This is a simplified implementation - in production, use proper PostgREST syntax
-
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
-  }
-
-  if (NEON_API_KEY) {
-    headers['Authorization'] = `Bearer ${NEON_API_KEY}`
-  }
-
   try {
-    const response = await fetch(`${NEON_REST_URL}/rpc/execute_sql`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        query: sql,
-        params: params || []
-      }),
-    })
-
-    if (!response.ok) {
-      const error = await response.text()
-      throw new Error(`Database query failed: ${error}`)
-    }
-
-    return await response.json()
+    const result = await pool.query(sql, params)
+    return result.rows as T[]
   } catch (error) {
     console.error('Database query error:', error)
     throw error
@@ -56,52 +60,29 @@ export async function getTable<T = any>(
     limit?: number
   }
 ): Promise<T[]> {
-  const headers: Record<string, string> = {
-    'Accept': 'application/json',
-  }
+  let sql = `SELECT ${options?.select || '*'} FROM ${table}`
+  const params: any[] = []
+  let paramIndex = 1
 
-  if (NEON_API_KEY) {
-    headers['Authorization'] = `Bearer ${NEON_API_KEY}`
-  }
-
-  let url = `${NEON_REST_URL}/${table}`
-  const searchParams = new URLSearchParams()
-
-  if (options?.select) {
-    searchParams.set('select', options.select)
+  if (options?.filter) {
+    const conditions = Object.entries(options.filter).map(([key, value]) => {
+      params.push(value)
+      return `${key} = $${paramIndex++}`
+    })
+    sql += ` WHERE ${conditions.join(' AND ')}`
   }
 
   if (options?.order) {
-    searchParams.set('order', options.order)
+    sql += ` ORDER BY ${options.order}`
   }
 
   if (options?.limit) {
-    searchParams.set('limit', options.limit.toString())
-  }
-
-  if (options?.filter) {
-    Object.entries(options.filter).forEach(([key, value]) => {
-      searchParams.set(key, `eq.${value}`)
-    })
-  }
-
-  const queryString = searchParams.toString()
-  if (queryString) {
-    url += `?${queryString}`
+    sql += ` LIMIT ${options.limit}`
   }
 
   try {
-    const response = await fetch(url, {
-      method: 'GET',
-      headers,
-    })
-
-    if (!response.ok) {
-      const error = await response.text()
-      throw new Error(`Database fetch failed: ${error}`)
-    }
-
-    return await response.json()
+    const result = await pool.query(sql, params)
+    return result.rows as T[]
   } catch (error) {
     console.error('Database fetch error:', error)
     throw error
@@ -112,27 +93,20 @@ export async function getTable<T = any>(
  * Insert data into a table
  */
 export async function insert<T = any>(table: string, data: Record<string, any>): Promise<T> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
+  const keys = Object.keys(data)
+  const values = Object.values(data)
+  const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ')
+  const columns = keys.join(', ')
+
+  const sql = `INSERT INTO ${table} (${columns}) VALUES (${placeholders}) RETURNING *`
+
+  try {
+    const result = await pool.query(sql, values)
+    return result.rows[0] as T
+  } catch (error) {
+    console.error('Database insert error:', error)
+    throw error
   }
-
-  if (NEON_API_KEY) {
-    headers['Authorization'] = `Bearer ${NEON_API_KEY}`
-  }
-
-  const response = await fetch(`${NEON_REST_URL}/${table}`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(data),
-  })
-
-  if (!response.ok) {
-    const error = await response.text()
-    throw new Error(`Database insert failed: ${error}`)
-  }
-
-  return await response.json()
 }
 
 /**
@@ -143,49 +117,30 @@ export async function update<T = any>(
   id: string | number,
   data: Record<string, any>
 ): Promise<T> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
+  const entries = Object.entries(data)
+  const setClause = entries.map((key, i) => `${key[0]} = $${i + 2}`).join(', ')
+  const sql = `UPDATE ${table} SET ${setClause} WHERE id = $1 RETURNING *`
+
+  try {
+    const result = await pool.query(sql, [id, ...entries.map(e => e[1])])
+    return result.rows[0] as T
+  } catch (error) {
+    console.error('Database update error:', error)
+    throw error
   }
-
-  if (NEON_API_KEY) {
-    headers['Authorization'] = `Bearer ${NEON_API_KEY}`
-  }
-
-  const response = await fetch(`${NEON_REST_URL}/${table}?id=eq.${id}`, {
-    method: 'PATCH',
-    headers,
-    body: JSON.stringify(data),
-  })
-
-  if (!response.ok) {
-    const error = await response.text()
-    throw new Error(`Database update failed: ${error}`)
-  }
-
-  return await response.json()
 }
 
 /**
  * Delete data from a table
  */
 export async function remove(table: string, id: string | number): Promise<void> {
-  const headers: Record<string, string> = {
-    'Accept': 'application/json',
-  }
+  const sql = `DELETE FROM ${table} WHERE id = $1`
 
-  if (NEON_API_KEY) {
-    headers['Authorization'] = `Bearer ${NEON_API_KEY}`
-  }
-
-  const response = await fetch(`${NEON_REST_URL}/${table}?id=eq.${id}`, {
-    method: 'DELETE',
-    headers,
-  })
-
-  if (!response.ok) {
-    const error = await response.text()
-    throw new Error(`Database delete failed: ${error}`)
+  try {
+    await pool.query(sql, [id])
+  } catch (error) {
+    console.error('Database delete error:', error)
+    throw error
   }
 }
 

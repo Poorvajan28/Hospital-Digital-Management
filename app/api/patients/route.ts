@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getTable, insert } from "@/lib/db"
+import { addRegisteredPatient } from "@/lib/registered-users"
 
-// Mock data for testing
+// Mock data for testing (only used if database is unavailable)
 const mockPatients = [
   {
     id: 1,
@@ -13,9 +15,6 @@ const mockPatients = [
     address: "123 Anna Salai, Chennai",
     blood_group: "O+",
     emergency_contact: "+91 98765 43220",
-    aadhaar_number: "123456789012",
-    insurance_provider: "Star Health",
-    insurance_id: "SH123456789",
     status: "active",
   },
   {
@@ -29,9 +28,6 @@ const mockPatients = [
     address: "45 T Nagar, Chennai",
     blood_group: "A+",
     emergency_contact: "+91 98765 43221",
-    aadhaar_number: "234567890123",
-    insurance_provider: "ICICI Lombard",
-    insurance_id: "IC987654321",
     status: "active",
   },
   {
@@ -45,51 +41,88 @@ const mockPatients = [
     address: "78 Velachery, Chennai",
     blood_group: "B+",
     emergency_contact: "+91 98765 43222",
-    aadhaar_number: "345678901234",
-    insurance_provider: "Max Bupa",
-    insurance_id: "MB456789012",
     status: "active",
   },
 ]
 
 export async function GET() {
-  return NextResponse.json(mockPatients)
+  try {
+    const patients = await getTable("patients", {
+      select: "*",
+      order: "created_at.desc",
+    })
+    return NextResponse.json(patients)
+  } catch (error) {
+    console.error("Database error, falling back to mock data:", error)
+    return NextResponse.json(mockPatients)
+  }
 }
 
 export async function POST(request: NextRequest) {
-  const body = await request.json()
-  const newPatient = {
-    id: mockPatients.length + 1,
-    ...body,
-    created_at: new Date().toISOString(),
+  let body: any = null;
+
+  try {
+    body = await request.json();
+
+    const patientData = {
+      patient_id: body.patientId || body.patient_id,
+      first_name: body.firstName || body.first_name,
+      last_name: body.lastName || body.last_name,
+      email: body.email,
+      phone: body.phone,
+      date_of_birth: body.dateOfBirth || body.date_of_birth,
+      gender: body.gender,
+      address: body.address,
+      blood_group: body.bloodGroup || body.blood_group,
+      emergency_contact: body.emergencyContact || body.emergency_contact,
+      aadhaar_number: body.aadhaarNumber || body.aadhaar_number,
+      insurance_provider: body.insuranceProvider || body.insurance_provider,
+      insurance_id: body.insuranceId || body.insurance_id,
+      insurance_expiry: body.insuranceExpiry || body.insurance_expiry,
+      status: "active",
+      created_at: new Date().toISOString(),
+    }
+
+    const newPatient = await insert("patients", patientData);
+
+    addRegisteredPatient({
+      id: String(newPatient.id || newPatient.patient_id),
+      email: newPatient.email,
+      password: body.password || "",
+      firstName: newPatient.first_name,
+      lastName: newPatient.last_name
+    });
+
+    console.log("Patient registered in database:", newPatient);
+    return NextResponse.json(newPatient, { status: 201 });
+  } catch (error: any) {
+    console.error("Database error, using fallback:", error.message);
+
+    const mockPatient = {
+      id: mockPatients.length + 1,
+      patient_id: body?.patientId || body?.patient_id || `PT-${Date.now()}`,
+      first_name: body?.firstName || body?.first_name || "",
+      last_name: body?.lastName || body?.last_name || "",
+      email: body?.email || "",
+      phone: body?.phone || "",
+      date_of_birth: body?.dateOfBirth || body?.date_of_birth || "",
+      gender: body?.gender || "",
+      address: body?.address || "",
+      blood_group: body?.bloodGroup || body?.blood_group || "",
+      emergency_contact: body?.emergencyContact || body?.emergency_contact || "",
+      created_at: new Date().toISOString(),
+    };
+    mockPatients.push(mockPatient as any);
+
+    addRegisteredPatient({
+      id: String(mockPatient.id),
+      email: mockPatient.email,
+      password: body?.password || "",
+      firstName: body?.firstName || "",
+      lastName: body?.lastName || ""
+    });
+
+    console.log("Using mock data fallback, patient registered:", mockPatient);
+    return NextResponse.json(mockPatient, { status: 201 });
   }
-  mockPatients.push(newPatient)
-  return NextResponse.json(newPatient, { status: 201 })
-}
-
-export async function PUT(request: NextRequest) {
-  const { searchParams } = new URL(request.url)
-  const id = parseInt(searchParams.get("id") || "0")
-  const body = await request.json()
-
-  const index = mockPatients.findIndex((p) => p.id === id)
-  if (index >= 0) {
-    mockPatients[index] = { ...mockPatients[index], ...body }
-    return NextResponse.json(mockPatients[index])
-  }
-
-  return NextResponse.json({ error: "Not found" }, { status: 404 })
-}
-
-export async function DELETE(request: NextRequest) {
-  const { searchParams } = new URL(request.url)
-  const id = parseInt(searchParams.get("id") || "0")
-
-  const index = mockPatients.findIndex((p) => p.id === id)
-  if (index >= 0) {
-    mockPatients.splice(index, 1)
-    return NextResponse.json({ success: true })
-  }
-
-  return NextResponse.json({ error: "Not found" }, { status: 404 })
 }

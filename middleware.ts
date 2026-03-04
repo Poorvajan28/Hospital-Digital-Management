@@ -43,6 +43,9 @@ export default withAuth(
                 if (
                     req.nextUrl.pathname === "/" ||
                     req.nextUrl.pathname === "/login" ||
+                    req.nextUrl.pathname === "/signup" ||
+                    req.nextUrl.pathname === "/forgot-password" ||
+                    req.nextUrl.pathname.startsWith("/reset-password") ||
                     req.nextUrl.pathname === "/unauthorized" ||
                     req.nextUrl.pathname.startsWith("/api/auth") ||
                     req.nextUrl.pathname.startsWith("/_next") ||
