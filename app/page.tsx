@@ -134,13 +134,13 @@ export default function HomePage() {
               <span>Next-Generation Hospital Platform</span>
             </div>
           </div>
-          <h1 className="animate-fade-in text-balance text-5xl font-extrabold tracking-tight text-foreground drop-shadow-lg sm:text-6xl lg:text-8xl [animation-delay:100ms]">
-            Medi<span className="text-primary">Core</span>
+          <h1 className="animate-fade-in text-balance text-5xl font-extrabold tracking-tight text-white drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)] sm:text-6xl lg:text-8xl [animation-delay:100ms]">
+            Medi<span className="text-primary drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]">Core</span>
           </h1>
-          <p className="animate-fade-in mt-4 text-lg font-semibold tracking-wide text-foreground/80 drop-shadow-md sm:text-xl [animation-delay:200ms]">
+          <p className="animate-fade-in mt-4 text-lg font-bold tracking-wide text-white drop-shadow-[0_2px_5px_rgba(0,0,0,0.8)] sm:text-xl [animation-delay:200ms]">
             HOSPITAL MANAGEMENT SYSTEM
           </p>
-          <p className="animate-fade-in mx-auto mt-6 max-w-2xl text-pretty text-base leading-relaxed text-foreground/90 drop-shadow-sm sm:text-lg [animation-delay:300ms]">
+          <p className="animate-fade-in mx-auto mt-6 max-w-2xl text-pretty text-base font-medium leading-relaxed text-slate-100 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] sm:text-lg [animation-delay:300ms]">
             Streamline every aspect of your hospital operations. From patient care to inventory, staff management to blood bank monitoring -- one unified, intelligent platform.
           </p>
           <div className="animate-fade-in mt-12 flex flex-col items-center justify-center gap-4 sm:flex-row [animation-delay:400ms]">
@@ -154,7 +154,7 @@ export default function HomePage() {
               asChild
               variant="outline"
               size="lg"
-              className="h-13 gap-2 border-border/50 bg-background/50 px-10 text-base font-semibold backdrop-blur-sm"
+              className="h-13 gap-2 border-slate-300/50 bg-black/40 px-10 text-base font-semibold text-white backdrop-blur-md hover:bg-black/60 hover:text-white"
             >
               <Link href="#features">
                 Explore Features
