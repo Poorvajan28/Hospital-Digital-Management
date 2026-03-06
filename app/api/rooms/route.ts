@@ -1,53 +1,63 @@
-import { NextResponse } from "next/server"
-
-// Mock data for testing
-const mockRooms = [
-  { id: 1, room_number: "A-101", ward: "General Ward A", type: "General", capacity: 2, occupied: 1, status: "available" },
-  { id: 2, room_number: "A-102", ward: "General Ward A", type: "General", capacity: 2, occupied: 2, status: "occupied" },
-  { id: 3, room_number: "ICU-01", ward: "ICU", type: "ICU", capacity: 1, occupied: 1, status: "occupied" },
-  { id: 4, room_number: "ICU-02", ward: "ICU", type: "ICU", capacity: 1, occupied: 0, status: "available" },
-  { id: 5, room_number: "OP-1", ward: "OPD", type: "Consultation", capacity: 1, occupied: 0, status: "available" },
-  { id: 6, room_number: "OP-2", ward: "OPD", type: "Consultation", capacity: 1, occupied: 1, status: "occupied" },
-]
+import { NextRequest, NextResponse } from "next/server"
+import { getTable, insert, update, remove } from "@/lib/db"
 
 export async function GET() {
-  return NextResponse.json(mockRooms)
-}
-
-export async function POST(request: Request) {
-  const body = await request.json()
-  const newRoom = {
-    id: mockRooms.length + 1,
-    ...body,
-    created_at: new Date().toISOString(),
+  try {
+    const rooms = await getTable("rooms", {
+      order: "room_number.asc",
+    })
+    return NextResponse.json(rooms)
+  } catch (error) {
+    console.error("Database error fetching rooms:", error)
+    return NextResponse.json({ error: "Failed to fetch rooms" }, { status: 500 })
   }
-  mockRooms.push(newRoom)
-  return NextResponse.json(newRoom, { status: 201 })
 }
 
-export async function PUT(request: Request) {
-  const { searchParams } = new URL(request.url)
-  const id = parseInt(searchParams.get("id") || "0")
-  const body = await request.json()
-
-  const index = mockRooms.findIndex((r) => r.id === id)
-  if (index >= 0) {
-    mockRooms[index] = { ...mockRooms[index], ...body }
-    return NextResponse.json(mockRooms[index])
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const newRoom = await insert("rooms", {
+      room_number: body.room_number || body.roomNumber,
+      room_type: body.room_type || body.roomType,
+      floor: body.floor,
+      beds_total: body.beds_total || body.bedsTotal || 1,
+      beds_occupied: body.beds_occupied || body.bedsOccupied || 0,
+      status: body.status || "available",
+      daily_rate: body.daily_rate || body.dailyRate,
+    })
+    return NextResponse.json(newRoom, { status: 201 })
+  } catch (error: any) {
+    console.error("Database error creating room:", error.message)
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
-
-  return NextResponse.json({ error: "Not found" }, { status: 404 })
 }
 
-export async function DELETE(request: Request) {
-  const { searchParams } = new URL(request.url)
-  const id = parseInt(searchParams.get("id") || "0")
+export async function PUT(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get("id")
+    if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 })
 
-  const index = mockRooms.findIndex((r) => r.id === id)
-  if (index >= 0) {
-    mockRooms.splice(index, 1)
+    const body = await request.json()
+    const updated = await update("rooms", id, body)
+    if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 })
+    return NextResponse.json(updated)
+  } catch (error: any) {
+    console.error("Database error updating room:", error.message)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get("id")
+    if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 })
+
+    await remove("rooms", id)
     return NextResponse.json({ success: true })
+  } catch (error: any) {
+    console.error("Database error deleting room:", error.message)
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
-
-  return NextResponse.json({ error: "Not found" }, { status: 404 })
 }

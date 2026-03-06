@@ -30,17 +30,17 @@ INSERT INTO staff (first_name, last_name, email, phone, role, department_id, spe
 ON CONFLICT DO NOTHING;
 
 -- Seed Patients
-INSERT INTO patients (first_name, last_name, email, phone, date_of_birth, gender, blood_group, address, emergency_contact, emergency_phone, insurance_id, status) VALUES
-  ('John', 'Smith', 'john.smith@email.com', '+1-555-2001', '1985-04-12', 'Male', 'O+', '123 Oak Street, Springfield', 'Jane Smith', '+1-555-3001', 'INS-001234', 'active'),
-  ('Mary', 'Johnson', 'mary.johnson@email.com', '+1-555-2002', '1990-08-25', 'Female', 'A+', '456 Maple Ave, Springfield', 'Bob Johnson', '+1-555-3002', 'INS-001235', 'active'),
-  ('William', 'Davis', 'william.davis@email.com', '+1-555-2003', '1978-12-03', 'Male', 'B+', '789 Pine Road, Springfield', 'Linda Davis', '+1-555-3003', 'INS-001236', 'active'),
-  ('Elizabeth', 'Wilson', 'elizabeth.wilson@email.com', '+1-555-2004', '1995-02-18', 'Female', 'AB+', '321 Elm Blvd, Springfield', 'Tom Wilson', '+1-555-3004', 'INS-001237', 'active'),
-  ('James', 'Moore', 'james.moore@email.com', '+1-555-2005', '1982-07-30', 'Male', 'O-', '654 Cedar Lane, Springfield', 'Sarah Moore', '+1-555-3005', 'INS-001238', 'active'),
-  ('Patricia', 'Taylor', 'patricia.taylor@email.com', '+1-555-2006', '1973-11-14', 'Female', 'A-', '987 Birch Dr, Springfield', 'Mike Taylor', '+1-555-3006', 'INS-001239', 'active'),
-  ('Robert', 'Thomas', 'robert.thomas@email.com', '+1-555-2007', '1988-06-22', 'Male', 'B-', '147 Walnut St, Springfield', 'Karen Thomas', '+1-555-3007', 'INS-001240', 'active'),
-  ('Linda', 'Jackson', 'linda.jackson@email.com', '+1-555-2008', '1992-01-09', 'Female', 'O+', '258 Ash Way, Springfield', 'Dan Jackson', '+1-555-3008', 'INS-001241', 'active'),
-  ('Charles', 'White', 'charles.white@email.com', '+1-555-2009', '1968-09-27', 'Male', 'A+', '369 Spruce Ct, Springfield', 'Nancy White', '+1-555-3009', 'INS-001242', 'active'),
-  ('Barbara', 'Harris', 'barbara.harris@email.com', '+1-555-2010', '2001-03-15', 'Female', 'AB-', '480 Redwood Pl, Springfield', 'Joe Harris', '+1-555-3010', 'INS-001243', 'active')
+INSERT INTO patients (patient_id, first_name, last_name, email, phone, date_of_birth, gender, blood_group, address, emergency_contact, emergency_phone, insurance_id, status) VALUES
+  ('PAT001', 'John', 'Smith', 'john.smith@email.com', '+1-555-2001', '1985-04-12', 'Male', 'O+', '123 Oak Street, Springfield', 'Jane Smith', '+1-555-3001', 'INS-001234', 'active'),
+  ('PAT002', 'Mary', 'Johnson', 'mary.johnson@email.com', '+1-555-2002', '1990-08-25', 'Female', 'A+', '456 Maple Ave, Springfield', 'Bob Johnson', '+1-555-3002', 'INS-001235', 'active'),
+  ('PAT003', 'William', 'Davis', 'william.davis@email.com', '+1-555-2003', '1978-12-03', 'Male', 'B+', '789 Pine Road, Springfield', 'Linda Davis', '+1-555-3003', 'INS-001236', 'active'),
+  ('PAT004', 'Elizabeth', 'Wilson', 'elizabeth.wilson@email.com', '+1-555-2004', '1995-02-18', 'Female', 'AB+', '321 Elm Blvd, Springfield', 'Tom Wilson', '+1-555-3004', 'INS-001237', 'active'),
+  ('PAT005', 'James', 'Moore', 'james.moore@email.com', '+1-555-2005', '1982-07-30', 'Male', 'O-', '654 Cedar Lane, Springfield', 'Sarah Moore', '+1-555-3005', 'INS-001238', 'active'),
+  ('PAT006', 'Patricia', 'Taylor', 'patricia.taylor@email.com', '+1-555-2006', '1973-11-14', 'Female', 'A-', '987 Birch Dr, Springfield', 'Mike Taylor', '+1-555-3006', 'INS-001239', 'active'),
+  ('PAT007', 'Robert', 'Thomas', 'robert.thomas@email.com', '+1-555-2007', '1988-06-22', 'Male', 'B-', '147 Walnut St, Springfield', 'Karen Thomas', '+1-555-3007', 'INS-001240', 'active'),
+  ('PAT008', 'Linda', 'Jackson', 'linda.jackson@email.com', '+1-555-2008', '1992-01-09', 'Female', 'O+', '258 Ash Way, Springfield', 'Dan Jackson', '+1-555-3008', 'INS-001241', 'active'),
+  ('PAT009', 'Charles', 'White', 'charles.white@email.com', '+1-555-2009', '1968-09-27', 'Male', 'A+', '369 Spruce Ct, Springfield', 'Nancy White', '+1-555-3009', 'INS-001242', 'active'),
+  ('PAT010', 'Barbara', 'Harris', 'barbara.harris@email.com', '+1-555-2010', '2001-03-15', 'Female', 'AB-', '480 Redwood Pl, Springfield', 'Joe Harris', '+1-555-3010', 'INS-001243', 'active')
 ON CONFLICT DO NOTHING;
 
 -- Seed Appointments
@@ -129,3 +129,11 @@ INSERT INTO rooms (room_number, room_type, floor, beds_total, beds_occupied, sta
   ('ER-2', 'Emergency', 1, 3, 1, 'available', 800.00),
   ('104', 'General', 1, 4, 0, 'maintenance', 150.00)
 ON CONFLICT DO NOTHING;
+
+-- Seed Demo Users (for authentication)
+INSERT INTO users (email, password, name, role, department) VALUES
+  ('admin@example.com', 'admin123', 'Admin User', 'admin', 'Administration'),
+  ('doctor@example.com', 'doctor123', 'Dr. Priya Sharma', 'physician', 'Cardiology'),
+  ('nurse@example.com', 'nurse123', 'Lakshmi N', 'nurse', 'General Medicine'),
+  ('patient@example.com', 'patient123', 'Rajesh Kumar', 'patient', NULL)
+ON CONFLICT (email) DO NOTHING;

@@ -1,51 +1,45 @@
-// PostgreSQL Database Client using node-postgres
-import { Pool } from 'pg'
+// Neon Database Client - uses serverless driver for better connection handling
+import { neon } from '@neondatabase/serverless';
 
-// Create a connection pool with Neon-optimized settings
-export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false,
-    // Use compat mode for libpq compatibility
-  },
-  // Connection settings optimized for serverless
-  connectionTimeoutMillis: 5000,
-  idleTimeoutMillis: 10000,
-  max: 5, // Limit connections for serverless
-})
+// Lazy initialization - only create connection when first needed
+let _sql: ReturnType<typeof neon> | null = null;
 
-// Handle pool events
-pool.on('error', (err) => {
-  console.error('❌ Unexpected database pool error:', err.message)
-})
-
-// Test and reconnect function
-async function testConnection() {
-  try {
-    const client = await pool.connect()
-    console.log('✅ Database connected successfully')
-    client.release()
-  } catch (err: any) {
-    console.error('❌ Database connection failed:', err.message)
+function getSql() {
+  if (!_sql) {
+    const databaseUrl = process.env.DATABASE_URL;
+    if (!databaseUrl) {
+      throw new Error('DATABASE_URL is not set!');
+    }
+    _sql = neon(databaseUrl);
   }
-}
-
-// Run connection test in development
-if (process.env.NODE_ENV === 'development') {
-  testConnection()
+  return _sql;
 }
 
 /**
  * Execute a query and return results
+ * Neon serverless driver uses standard PostgreSQL protocol
  */
-export async function query<T = any>(sql: string, params?: any[]): Promise<T[]> {
+export async function query<T = any>(sqlText: string, params?: any[]): Promise<T[]> {
   try {
-    const result = await pool.query(sql, params)
-    return result.rows as T[]
+    const sql = getSql();
+    let result: any;
+    if (params && params.length > 0) {
+      result = await sql(sqlText, params);
+    } else {
+      result = await sql(sqlText);
+    }
+    return result as T[];
   } catch (error) {
-    console.error('Database query error:', error)
-    throw error
+    console.error('Database query error:', error);
+    throw error;
   }
+}
+
+/**
+ * Execute a raw query (alias for query)
+ */
+export async function rawQuery<T = any>(sqlText: string, params?: any[]): Promise<T[]> {
+  return query<T>(sqlText, params);
 }
 
 /**
@@ -60,53 +54,45 @@ export async function getTable<T = any>(
     limit?: number
   }
 ): Promise<T[]> {
-  let sql = `SELECT ${options?.select || '*'} FROM ${table}`
-  const params: any[] = []
-  let paramIndex = 1
+  const select = options?.select || '*';
+  let sqlText = `SELECT ${select} FROM ${table}`;
+  const params: any[] = [];
+  let paramIndex = 1;
 
   if (options?.filter) {
     const conditions = Object.entries(options.filter).map(([key, value]) => {
-      params.push(value)
-      return `${key} = $${paramIndex++}`
-    })
-    sql += ` WHERE ${conditions.join(' AND ')}`
+      params.push(value);
+      return `${key} = $${paramIndex++}`;
+    });
+    sqlText += ` WHERE ${conditions.join(' AND ')}`;
   }
 
   if (options?.order) {
-    sql += ` ORDER BY ${options.order}`
+    // Convert Supabase-style dot notation (e.g. "created_at.desc") to SQL ("created_at DESC")
+    const orderSql = options.order.replace(/\.([a-z]+)$/i, ' $1').toUpperCase().replace(/^(.+?)\s/, (_, col) => col.toLowerCase() + ' ');
+    sqlText += ` ORDER BY ${orderSql}`;
   }
 
   if (options?.limit) {
-    sql += ` LIMIT ${options.limit}`
+    sqlText += ` LIMIT ${options.limit}`;
   }
 
-  try {
-    const result = await pool.query(sql, params)
-    return result.rows as T[]
-  } catch (error) {
-    console.error('Database fetch error:', error)
-    throw error
-  }
+  return query<T>(sqlText, params);
 }
 
 /**
  * Insert data into a table
  */
 export async function insert<T = any>(table: string, data: Record<string, any>): Promise<T> {
-  const keys = Object.keys(data)
-  const values = Object.values(data)
-  const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ')
-  const columns = keys.join(', ')
+  const keys = Object.keys(data);
+  const values = Object.values(data);
+  const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
+  const columns = keys.join(', ');
 
-  const sql = `INSERT INTO ${table} (${columns}) VALUES (${placeholders}) RETURNING *`
+  const sqlText = `INSERT INTO ${table} (${columns}) VALUES (${placeholders}) RETURNING *`;
 
-  try {
-    const result = await pool.query(sql, values)
-    return result.rows[0] as T
-  } catch (error) {
-    console.error('Database insert error:', error)
-    throw error
-  }
+  const result = await query<T>(sqlText, values);
+  return result[0];
 }
 
 /**
@@ -117,32 +103,27 @@ export async function update<T = any>(
   id: string | number,
   data: Record<string, any>
 ): Promise<T> {
-  const entries = Object.entries(data)
-  const setClause = entries.map((key, i) => `${key[0]} = $${i + 2}`).join(', ')
-  const sql = `UPDATE ${table} SET ${setClause} WHERE id = $1 RETURNING *`
+  const entries = Object.entries(data);
+  const setClause = entries.map(([col], i) => `${col} = $${i + 2}`).join(', ');
+  const sqlText = `UPDATE ${table} SET ${setClause} WHERE id = $1 RETURNING *`;
 
-  try {
-    const result = await pool.query(sql, [id, ...entries.map(e => e[1])])
-    return result.rows[0] as T
-  } catch (error) {
-    console.error('Database update error:', error)
-    throw error
-  }
+  const result = await query<T>(sqlText, [id, ...entries.map(e => e[1])]);
+  return result[0];
 }
 
 /**
  * Delete data from a table
  */
 export async function remove(table: string, id: string | number): Promise<void> {
-  const sql = `DELETE FROM ${table} WHERE id = $1`
-
-  try {
-    await pool.query(sql, [id])
-  } catch (error) {
-    console.error('Database delete error:', error)
-    throw error
-  }
+  const sqlText = `DELETE FROM ${table} WHERE id = $1`;
+  await query(sqlText, [id]);
 }
+
+// Legacy compatibility - pool is not used with Neon serverless
+export const pool = {
+  query,
+  end: async () => { },
+};
 
 // Legacy compatibility - returns an object with query methods
 export function getDb() {
@@ -152,5 +133,5 @@ export function getDb() {
     insert,
     update,
     remove,
-  }
+  };
 }

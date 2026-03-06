@@ -1,51 +1,6 @@
 import NextAuth from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
-import { validatePatientCredentials, getRegisteredPatient } from "@/lib/registered-users"
-
-interface DemoUser {
-    id: string
-    email: string
-    password: string
-    name: string
-    role: "admin" | "physician" | "nurse" | "patient"
-    department: string | null
-}
-
-// Demo users for testing
-const demoUsers: DemoUser[] = [
-    {
-        id: "1",
-        email: "admin@example.com",
-        password: "admin123",
-        name: "Admin User",
-        role: "admin",
-        department: "Administration"
-    },
-    {
-        id: "2",
-        email: "doctor@example.com",
-        password: "doctor123",
-        name: "Dr. Priya Sharma",
-        role: "physician",
-        department: "Cardiology"
-    },
-    {
-        id: "3",
-        email: "nurse@example.com",
-        password: "nurse123",
-        name: "Lakshmi N",
-        role: "nurse",
-        department: "General Medicine"
-    },
-    {
-        id: "4",
-        email: "patient@example.com",
-        password: "patient123",
-        name: "Rajesh Kumar",
-        role: "patient",
-        department: null
-    }
-]
+import { validatePatientCredentials } from "@/lib/registered-users"
 
 const handler = NextAuth({
     providers: [
@@ -61,27 +16,10 @@ const handler = NextAuth({
                     return null
                 }
 
-                // First, check if user is a registered patient
-                const registeredPatient = validatePatientCredentials(
+                // Check user in database (includes both registered patients and seeded demo users)
+                const user = await validatePatientCredentials(
                     credentials.email,
                     credentials.password
-                )
-
-                if (registeredPatient) {
-                    console.log("Authenticated registered patient:", registeredPatient.email)
-                    return {
-                        id: registeredPatient.id,
-                        email: registeredPatient.email,
-                        name: registeredPatient.name,
-                        role: registeredPatient.role,
-                        department: null
-                    }
-                }
-
-                // Then, check demo users
-                const user = demoUsers.find(
-                    u => u.email.toLowerCase() === credentials.email.toLowerCase() &&
-                        u.password === credentials.password
                 )
 
                 if (!user) {
@@ -101,8 +39,8 @@ const handler = NextAuth({
                     id: user.id,
                     email: user.email,
                     name: user.name,
-                    role: user.role,
-                    department: user.department
+                    role: user.role as "admin" | "physician" | "nurse" | "patient",
+                    department: user.department || null
                 }
             }
         })
@@ -110,17 +48,6 @@ const handler = NextAuth({
     session: {
         strategy: "jwt",
         maxAge: 30 * 24 * 60 * 60, // 30 days
-    },
-    cookies: {
-        sessionToken: {
-            name: `__Secure-next-auth.session-token`,
-            options: {
-                httpOnly: true,
-                sameSite: "lax",
-                path: "/",
-                secure: process.env.NODE_ENV === "production"
-            }
-        }
     },
     callbacks: {
         async jwt({ token, user }) {

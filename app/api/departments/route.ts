@@ -1,55 +1,60 @@
-import { NextResponse } from "next/server"
-
-// Mock data for testing
-const mockDepartments = [
-  { id: 1, name: "Cardiology", description: "Heart and cardiovascular care", head_id: 1, status: "active" },
-  { id: 2, name: "Surgery", description: "General and specialized surgery", head_id: 2, status: "active" },
-  { id: 3, name: "General Medicine", description: "General healthcare services", head_id: null, status: "active" },
-  { id: 4, name: "Emergency", description: "24/7 emergency services", head_id: null, status: "active" },
-  { id: 5, name: "ICU", description: "Intensive Care Unit", head_id: null, status: "active" },
-  { id: 6, name: "Radiology", description: "Diagnostic imaging", head_id: null, status: "active" },
-  { id: 7, name: "Nephrology", description: "Kidney care and dialysis", head_id: null, status: "active" },
-  { id: 8, name: "Pediatrics", description: "Children's healthcare", head_id: null, status: "active" },
-]
+import { NextRequest, NextResponse } from "next/server"
+import { getTable, insert, update, remove } from "@/lib/db"
 
 export async function GET() {
-  return NextResponse.json(mockDepartments)
-}
-
-export async function POST(request: Request) {
-  const body = await request.json()
-  const newDepartment = {
-    id: mockDepartments.length + 1,
-    ...body,
-    created_at: new Date().toISOString(),
+  try {
+    const departments = await getTable("departments", {
+      order: "name.asc",
+    })
+    return NextResponse.json(departments)
+  } catch (error) {
+    console.error("Database error fetching departments:", error)
+    return NextResponse.json({ error: "Failed to fetch departments" }, { status: 500 })
   }
-  mockDepartments.push(newDepartment)
-  return NextResponse.json(newDepartment, { status: 201 })
 }
 
-export async function PUT(request: Request) {
-  const { searchParams } = new URL(request.url)
-  const id = parseInt(searchParams.get("id") || "0")
-  const body = await request.json()
-
-  const index = mockDepartments.findIndex((d) => d.id === id)
-  if (index >= 0) {
-    mockDepartments[index] = { ...mockDepartments[index], ...body }
-    return NextResponse.json(mockDepartments[index])
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const newDepartment = await insert("departments", {
+      name: body.name,
+      description: body.description,
+      head_doctor: body.head_doctor || body.headDoctor,
+      phone: body.phone,
+    })
+    return NextResponse.json(newDepartment, { status: 201 })
+  } catch (error: any) {
+    console.error("Database error creating department:", error.message)
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
-
-  return NextResponse.json({ error: "Not found" }, { status: 404 })
 }
 
-export async function DELETE(request: Request) {
-  const { searchParams } = new URL(request.url)
-  const id = parseInt(searchParams.get("id") || "0")
+export async function PUT(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get("id")
+    if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 })
 
-  const index = mockDepartments.findIndex((d) => d.id === id)
-  if (index >= 0) {
-    mockDepartments.splice(index, 1)
+    const body = await request.json()
+    const updated = await update("departments", id, body)
+    if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 })
+    return NextResponse.json(updated)
+  } catch (error: any) {
+    console.error("Database error updating department:", error.message)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get("id")
+    if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 })
+
+    await remove("departments", id)
     return NextResponse.json({ success: true })
+  } catch (error: any) {
+    console.error("Database error deleting department:", error.message)
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
-
-  return NextResponse.json({ error: "Not found" }, { status: 404 })
 }

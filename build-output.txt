@@ -1,0 +1,61 @@
+﻿Γû▓ Next.js 16.1.6 (Turbopack)
+- Environments: .env.local
+
+node.exe : ΓÜá The "middleware" file convention is deprecated. Please use "proxy" 
+instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+At C:\Program Files\nodejs\npx.ps1:29 char:3
++   & $NODE_EXE $NPX_CLI_JS $args
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (ΓÜá The "middle...leware-to-proxy:String)  
+   [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  Creating an optimized production build ...
+Γ£ô Compiled successfully in 7.4s
+  Skipping validation of types
+  Collecting page data using 7 workers ...
+  Generating static pages using 7 workers (0/29) ...
+  Generating static pages using 7 workers (7/29) 
+  Generating static pages using 7 workers (14/29) 
+  Generating static pages using 7 workers (21/29) 
+Γ£ô Generating static pages using 7 workers (29/29) in 808.4ms
+  Finalizing page optimization ...
+
+Route (app)
+Γöî Γùï /
+Γö£ Γùï /_not-found
+Γö£ ╞Æ /api/appointments
+Γö£ ╞Æ /api/auth/[...nextauth]
+Γö£ ╞Æ /api/auth/reset-password
+Γö£ ╞Æ /api/auth/reset-password/confirm
+Γö£ ╞Æ /api/blood-donors
+Γö£ ╞Æ /api/blood-stock
+Γö£ ╞Æ /api/debug/init-db
+Γö£ ╞Æ /api/departments
+Γö£ ╞Æ /api/inventory
+Γö£ ╞Æ /api/medical-records
+Γö£ ╞Æ /api/patients
+Γö£ ╞Æ /api/rooms
+Γö£ ╞Æ /api/staff
+Γö£ Γùï /dashboard
+Γö£ Γùï /dashboard/appointments
+Γö£ Γùï /dashboard/beds
+Γö£ Γùï /dashboard/blood-bank
+Γö£ Γùï /dashboard/departments
+Γö£ Γùï /dashboard/equipment
+Γö£ Γùï /dashboard/inventory
+Γö£ Γùï /dashboard/medical-records
+Γö£ Γùï /dashboard/patients
+Γö£ Γùï /dashboard/rooms
+Γö£ Γùï /dashboard/staff
+Γö£ Γùï /forgot-password
+Γö£ Γùï /login
+Γö£ Γùï /reset-password
+Γöö Γùï /signup
+
+
+╞Æ Proxy (Middleware)
+
+Γùï  (Static)   prerendered as static content
+╞Æ  (Dynamic)  server-rendered on demand
+

@@ -1,89 +1,70 @@
 import { NextRequest, NextResponse } from "next/server"
-
-// Mock data for testing
-const mockMedicalRecords = [
-  {
-    id: 1,
-    patient_id: 1,
-    patient_name: "Rajesh Kumar",
-    doctor_id: 1,
-    doctor_name: "Dr. Priya Sharma",
-    diagnosis: "Hypertension",
-    symptoms: "Headache, dizziness",
-    prescription: "Tab. Amlodipine 5mg OD",
-    notes: "Patient advised lifestyle modifications",
-    record_date: "2026-03-02",
-    follow_up_date: "2026-03-16",
-    status: "active",
-  },
-  {
-    id: 2,
-    patient_id: 2,
-    patient_name: "Lakshmi N",
-    doctor_id: 2,
-    doctor_name: "Dr. Karthik R",
-    diagnosis: "Acute Appendicitis",
-    symptoms: "Abdominal pain, fever",
-    prescription: "Pre-surgery antibiotics",
-    notes: "Scheduled for appendectomy",
-    record_date: "2026-03-02",
-    follow_up_date: "2026-03-05",
-    status: "active",
-  },
-  {
-    id: 3,
-    patient_id: 3,
-    patient_name: "Suresh M",
-    doctor_id: 1,
-    doctor_name: "Dr. Priya Sharma",
-    diagnosis: "Annual Checkup",
-    symptoms: "None",
-    prescription: "Continue current medications",
-    notes: "All vitals normal",
-    record_date: "2026-03-01",
-    follow_up_date: "2027-03-01",
-    status: "completed",
-  },
-]
+import { query, insert, update, remove } from "@/lib/db"
 
 export async function GET() {
-  return NextResponse.json(mockMedicalRecords)
+  try {
+    const records = await query(`
+      SELECT mr.*,
+        p.first_name || ' ' || p.last_name as patient_name,
+        s.first_name || ' ' || s.last_name as doctor_name
+      FROM medical_records mr
+      LEFT JOIN patients p ON mr.patient_id = p.id
+      LEFT JOIN staff s ON mr.doctor_id = s.id
+      ORDER BY mr.visit_date DESC
+    `)
+    return NextResponse.json(records)
+  } catch (error) {
+    console.error("Database error fetching medical records:", error)
+    return NextResponse.json({ error: "Failed to fetch medical records" }, { status: 500 })
+  }
 }
 
 export async function POST(request: NextRequest) {
-  const body = await request.json()
-  const newRecord = {
-    id: mockMedicalRecords.length + 1,
-    ...body,
-    created_at: new Date().toISOString(),
+  try {
+    const body = await request.json()
+    const newRecord = await insert("medical_records", {
+      patient_id: body.patient_id || body.patientId,
+      doctor_id: body.doctor_id || body.doctorId,
+      diagnosis: body.diagnosis,
+      treatment: body.treatment,
+      prescription: body.prescription,
+      visit_date: body.visit_date || body.visitDate,
+      follow_up_date: body.follow_up_date || body.followUpDate,
+      notes: body.notes,
+    })
+    return NextResponse.json(newRecord, { status: 201 })
+  } catch (error: any) {
+    console.error("Database error creating medical record:", error.message)
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
-  mockMedicalRecords.push(newRecord)
-  return NextResponse.json(newRecord, { status: 201 })
 }
 
 export async function PUT(request: NextRequest) {
-  const { searchParams } = new URL(request.url)
-  const id = parseInt(searchParams.get("id") || "0")
-  const body = await request.json()
+  try {
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get("id")
+    if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 })
 
-  const index = mockMedicalRecords.findIndex((r) => r.id === id)
-  if (index >= 0) {
-    mockMedicalRecords[index] = { ...mockMedicalRecords[index], ...body }
-    return NextResponse.json(mockMedicalRecords[index])
+    const body = await request.json()
+    const updated = await update("medical_records", id, body)
+    if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 })
+    return NextResponse.json(updated)
+  } catch (error: any) {
+    console.error("Database error updating medical record:", error.message)
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
-
-  return NextResponse.json({ error: "Not found" }, { status: 404 })
 }
 
 export async function DELETE(request: NextRequest) {
-  const { searchParams } = new URL(request.url)
-  const id = parseInt(searchParams.get("id") || "0")
+  try {
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get("id")
+    if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 })
 
-  const index = mockMedicalRecords.findIndex((r) => r.id === id)
-  if (index >= 0) {
-    mockMedicalRecords.splice(index, 1)
+    await remove("medical_records", id)
     return NextResponse.json({ success: true })
+  } catch (error: any) {
+    console.error("Database error deleting medical record:", error.message)
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
-
-  return NextResponse.json({ error: "Not found" }, { status: 404 })
 }

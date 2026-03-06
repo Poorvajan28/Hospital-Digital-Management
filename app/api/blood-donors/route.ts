@@ -1,89 +1,67 @@
 import { NextRequest, NextResponse } from "next/server"
-
-// Mock data for testing
-const mockDonors = [
-  {
-    id: 1,
-    first_name: "Ramesh",
-    last_name: "Kumar",
-    email: "ramesh.kumar@email.com",
-    phone: "+91 98765 43210",
-    blood_group: "O+",
-    date_of_birth: "1990-05-15",
-    gender: "male",
-    address: "123 Anna Salai, Chennai",
-    last_donation_date: "2026-02-15",
-    eligibility_status: "eligible",
-    medical_history: "No known conditions",
-  },
-  {
-    id: 2,
-    first_name: "Priya",
-    last_name: "Venkatesh",
-    email: "priya.v@email.com",
-    phone: "+91 98765 43211",
-    blood_group: "A+",
-    date_of_birth: "1985-08-22",
-    gender: "female",
-    address: "45 T Nagar, Chennai",
-    last_donation_date: "2026-01-20",
-    eligibility_status: "eligible",
-    medical_history: "Healthy",
-  },
-  {
-    id: 3,
-    first_name: "Suresh",
-    last_name: "Murugan",
-    email: "suresh.m@email.com",
-    phone: "+91 98765 43212",
-    blood_group: "B-",
-    date_of_birth: "1992-03-10",
-    gender: "male",
-    address: "78 Velachery, Chennai",
-    last_donation_date: "2025-12-10",
-    eligibility_status: "eligible",
-    medical_history: "No issues",
-  },
-]
+import { getTable, insert, update, remove } from "@/lib/db"
 
 export async function GET() {
-  return NextResponse.json(mockDonors)
+  try {
+    const donors = await getTable("blood_donors", {
+      order: "created_at.desc",
+    })
+    return NextResponse.json(donors)
+  } catch (error) {
+    console.error("Database error fetching blood donors:", error)
+    return NextResponse.json({ error: "Failed to fetch blood donors" }, { status: 500 })
+  }
 }
 
 export async function POST(request: NextRequest) {
-  const body = await request.json()
-  const newDonor = {
-    id: mockDonors.length + 1,
-    ...body,
-    created_at: new Date().toISOString(),
+  try {
+    const body = await request.json()
+    const newDonor = await insert("blood_donors", {
+      first_name: body.first_name || body.firstName,
+      last_name: body.last_name || body.lastName,
+      email: body.email,
+      phone: body.phone,
+      blood_group: body.blood_group || body.bloodGroup,
+      date_of_birth: body.date_of_birth || body.dateOfBirth,
+      gender: body.gender,
+      last_donation_date: body.last_donation_date || body.lastDonationDate,
+      total_donations: body.total_donations || body.totalDonations || 0,
+      status: body.status || "active",
+      address: body.address,
+    })
+    return NextResponse.json(newDonor, { status: 201 })
+  } catch (error: any) {
+    console.error("Database error creating blood donor:", error.message)
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
-  mockDonors.push(newDonor)
-  return NextResponse.json(newDonor, { status: 201 })
 }
 
 export async function PUT(request: NextRequest) {
-  const { searchParams } = new URL(request.url)
-  const id = parseInt(searchParams.get("id") || "0")
-  const body = await request.json()
+  try {
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get("id")
+    if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 })
 
-  const index = mockDonors.findIndex((d) => d.id === id)
-  if (index >= 0) {
-    mockDonors[index] = { ...mockDonors[index], ...body }
-    return NextResponse.json(mockDonors[index])
+    const body = await request.json()
+    const updated = await update("blood_donors", id, body)
+    if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 })
+    return NextResponse.json(updated)
+  } catch (error: any) {
+    console.error("Database error updating blood donor:", error.message)
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
-
-  return NextResponse.json({ error: "Not found" }, { status: 404 })
 }
 
 export async function DELETE(request: NextRequest) {
-  const { searchParams } = new URL(request.url)
-  const id = parseInt(searchParams.get("id") || "0")
+  try {
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get("id")
+    if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 })
 
-  const index = mockDonors.findIndex((d) => d.id === id)
-  if (index >= 0) {
-    mockDonors.splice(index, 1)
+    await remove("blood_donors", id)
     return NextResponse.json({ success: true })
+  } catch (error: any) {
+    console.error("Database error deleting blood donor:", error.message)
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
-
-  return NextResponse.json({ error: "Not found" }, { status: 404 })
 }

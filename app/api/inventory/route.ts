@@ -1,99 +1,65 @@
 import { NextRequest, NextResponse } from "next/server"
-
-// Mock data for testing
-const mockInventory = [
-  {
-    id: 1,
-    item_name: "Surgical Gloves",
-    category: "Consumables",
-    quantity: 500,
-    unit: "pairs",
-    min_stock_level: 100,
-    unit_price: 15,
-    supplier: "MediSupplies India",
-    expiry_date: "2027-12-31",
-    location: "Storage A1",
-    status: "adequate",
-  },
-  {
-    id: 2,
-    item_name: "Surgical Masks",
-    category: "Consumables",
-    quantity: 50,
-    unit: "boxes",
-    min_stock_level: 100,
-    unit_price: 250,
-    supplier: "MediSupplies India",
-    expiry_date: "2027-06-30",
-    location: "Storage A2",
-    status: "low",
-  },
-  {
-    id: 3,
-    item_name: "Bandages",
-    category: "Consumables",
-    quantity: 200,
-    unit: "rolls",
-    min_stock_level: 50,
-    unit_price: 45,
-    supplier: "HealthCare Plus",
-    expiry_date: "2028-01-15",
-    location: "Storage B1",
-    status: "adequate",
-  },
-  {
-    id: 4,
-    item_name: "Antiseptic Solution",
-    category: "Pharmaceuticals",
-    quantity: 30,
-    unit: "bottles",
-    min_stock_level: 20,
-    unit_price: 180,
-    supplier: "PharmaCare Ltd",
-    expiry_date: "2026-08-20",
-    location: "Pharmacy",
-    status: "adequate",
-  },
-]
+import { getTable, insert, update, remove } from "@/lib/db"
 
 export async function GET() {
-  return NextResponse.json(mockInventory)
+  try {
+    const inventory = await getTable("inventory", {
+      order: "item_name.asc",
+    })
+    return NextResponse.json(inventory)
+  } catch (error) {
+    console.error("Database error fetching inventory:", error)
+    return NextResponse.json({ error: "Failed to fetch inventory" }, { status: 500 })
+  }
 }
 
 export async function POST(request: NextRequest) {
-  const body = await request.json()
-  const newItem = {
-    id: mockInventory.length + 1,
-    ...body,
-    created_at: new Date().toISOString(),
+  try {
+    const body = await request.json()
+    const newItem = await insert("inventory", {
+      item_name: body.item_name || body.itemName,
+      category: body.category,
+      quantity: body.quantity || 0,
+      unit: body.unit || "pieces",
+      min_stock_level: body.min_stock_level || body.minStockLevel || 10,
+      unit_price: body.unit_price || body.unitPrice,
+      supplier: body.supplier,
+      expiry_date: body.expiry_date || body.expiryDate,
+      status: body.status || "in_stock",
+    })
+    return NextResponse.json(newItem, { status: 201 })
+  } catch (error: any) {
+    console.error("Database error creating inventory item:", error.message)
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
-  mockInventory.push(newItem)
-  return NextResponse.json(newItem, { status: 201 })
 }
 
 export async function PUT(request: NextRequest) {
-  const { searchParams } = new URL(request.url)
-  const id = parseInt(searchParams.get("id") || "0")
-  const body = await request.json()
+  try {
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get("id")
+    if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 })
 
-  const index = mockInventory.findIndex((i) => i.id === id)
-  if (index >= 0) {
-    mockInventory[index] = { ...mockInventory[index], ...body }
-    return NextResponse.json(mockInventory[index])
+    const body = await request.json()
+    const updated = await update("inventory", id, body)
+    if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 })
+    return NextResponse.json(updated)
+  } catch (error: any) {
+    console.error("Database error updating inventory:", error.message)
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
-
-  return NextResponse.json({ error: "Not found" }, { status: 404 })
 }
 
 export async function DELETE(request: NextRequest) {
-  const { searchParams } = new URL(request.url)
-  const id = parseInt(searchParams.get("id") || "0")
+  try {
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get("id")
+    if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 })
 
-  const index = mockInventory.findIndex((i) => i.id === id)
-  if (index >= 0) {
-    mockInventory.splice(index, 1)
+    await remove("inventory", id)
     return NextResponse.json({ success: true })
+  } catch (error: any) {
+    console.error("Database error deleting inventory item:", error.message)
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
-
-  return NextResponse.json({ error: "Not found" }, { status: 404 })
 }

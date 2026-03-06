@@ -1,42 +1,44 @@
-import { NextResponse } from "next/server"
-
-// Mock data for testing
-const mockBloodStock = [
-  { id: 1, blood_group: "A+", units_available: 25, status: "adequate" },
-  { id: 2, blood_group: "A-", units_available: 8, status: "low" },
-  { id: 3, blood_group: "B+", units_available: 32, status: "adequate" },
-  { id: 4, blood_group: "B-", units_available: 5, status: "critical" },
-  { id: 5, blood_group: "AB+", units_available: 12, status: "adequate" },
-  { id: 6, blood_group: "AB-", units_available: 3, status: "critical" },
-  { id: 7, blood_group: "O+", units_available: 45, status: "adequate" },
-  { id: 8, blood_group: "O-", units_available: 10, status: "low" },
-]
+import { NextRequest, NextResponse } from "next/server"
+import { getTable, insert, update } from "@/lib/db"
 
 export async function GET() {
-  return NextResponse.json(mockBloodStock)
+  try {
+    const bloodStock = await getTable("blood_stock", {
+      order: "blood_group.asc",
+    })
+    return NextResponse.json(bloodStock)
+  } catch (error) {
+    console.error("Database error fetching blood stock:", error)
+    return NextResponse.json({ error: "Failed to fetch blood stock" }, { status: 500 })
+  }
 }
 
-export async function POST(request: Request) {
-  const body = await request.json()
-  const newRecord = {
-    id: mockBloodStock.length + 1,
-    ...body,
-    last_updated: new Date().toISOString(),
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const newRecord = await insert("blood_stock", {
+      blood_group: body.blood_group || body.bloodGroup,
+      units_available: body.units_available || body.unitsAvailable || 0,
+    })
+    return NextResponse.json(newRecord, { status: 201 })
+  } catch (error: any) {
+    console.error("Database error creating blood stock:", error.message)
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
-  mockBloodStock.push(newRecord)
-  return NextResponse.json(newRecord, { status: 201 })
 }
 
-export async function PUT(request: Request) {
-  const { searchParams } = new URL(request.url)
-  const id = parseInt(searchParams.get("id") || "0")
-  const body = await request.json()
+export async function PUT(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get("id")
+    if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 })
 
-  const index = mockBloodStock.findIndex((s) => s.id === id)
-  if (index >= 0) {
-    mockBloodStock[index] = { ...mockBloodStock[index], ...body }
-    return NextResponse.json(mockBloodStock[index])
+    const body = await request.json()
+    const updated = await update("blood_stock", id, body)
+    if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 })
+    return NextResponse.json(updated)
+  } catch (error: any) {
+    console.error("Database error updating blood stock:", error.message)
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
-
-  return NextResponse.json({ error: "Not found" }, { status: 404 })
 }

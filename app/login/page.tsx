@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Building2, User, Lock, Eye, EyeOff, Loader2 } from "lucide-react";
@@ -31,7 +31,7 @@ const roles = [
     { value: "admin", label: "Administrator", description: "System management" },
 ];
 
-export default function LoginPage() {
+function LoginContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
@@ -240,5 +240,13 @@ export default function LoginPage() {
                 </p>
             </div>
         </div>
+    );
+}
+
+export default function LoginPage() {
+    return (
+        <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-teal-50 via-white to-teal-50"><Loader2 className="h-8 w-8 animate-spin text-teal-600" /></div>}>
+            <LoginContent />
+        </Suspense>
     );
 }

@@ -1,86 +1,72 @@
 import { NextRequest, NextResponse } from "next/server"
-
-// Mock data for testing
-const mockAppointments = [
-  {
-    id: 1,
-    patient_id: 1,
-    patient_name: "Rajesh Kumar",
-    doctor_id: 1,
-    doctor_name: "Dr. Priya Sharma",
-    department: "Cardiology",
-    appointment_date: "2026-03-05",
-    appointment_time: "10:00",
-    status: "scheduled",
-    type: "Consultation",
-    notes: "Follow-up for hypertension",
-  },
-  {
-    id: 2,
-    patient_id: 2,
-    patient_name: "Lakshmi N",
-    doctor_id: 2,
-    doctor_name: "Dr. Karthik R",
-    department: "Surgery",
-    appointment_date: "2026-03-05",
-    appointment_time: "11:30",
-    status: "confirmed",
-    type: "Surgery",
-    notes: "Appendectomy scheduled",
-  },
-  {
-    id: 3,
-    patient_id: 3,
-    patient_name: "Suresh M",
-    doctor_id: 1,
-    doctor_name: "Dr. Priya Sharma",
-    department: "Cardiology",
-    appointment_date: "2026-03-06",
-    appointment_time: "09:00",
-    status: "pending",
-    type: "Checkup",
-    notes: "Annual cardiac checkup",
-  },
-]
+import { query, insert, update, remove } from "@/lib/db"
 
 export async function GET() {
-  return NextResponse.json(mockAppointments)
+  try {
+    const appointments = await query(`
+      SELECT a.*,
+        p.first_name || ' ' || p.last_name as patient_name,
+        s.first_name || ' ' || s.last_name as doctor_name,
+        d.name as department_name
+      FROM appointments a
+      LEFT JOIN patients p ON a.patient_id = p.id
+      LEFT JOIN staff s ON a.doctor_id = s.id
+      LEFT JOIN departments d ON a.department_id = d.id
+      ORDER BY a.appointment_date DESC, a.appointment_time DESC
+    `)
+    return NextResponse.json(appointments)
+  } catch (error) {
+    console.error("Database error fetching appointments:", error)
+    return NextResponse.json({ error: "Failed to fetch appointments" }, { status: 500 })
+  }
 }
 
 export async function POST(request: NextRequest) {
-  const body = await request.json()
-  const newAppointment = {
-    id: mockAppointments.length + 1,
-    ...body,
-    created_at: new Date().toISOString(),
+  try {
+    const body = await request.json()
+    const newAppointment = await insert("appointments", {
+      patient_id: body.patient_id || body.patientId,
+      doctor_id: body.doctor_id || body.doctorId,
+      department_id: body.department_id || body.departmentId,
+      appointment_date: body.appointment_date || body.appointmentDate,
+      appointment_time: body.appointment_time || body.appointmentTime,
+      type: body.type || "consultation",
+      status: body.status || "scheduled",
+      notes: body.notes,
+    })
+    return NextResponse.json(newAppointment, { status: 201 })
+  } catch (error: any) {
+    console.error("Database error creating appointment:", error.message)
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
-  mockAppointments.push(newAppointment)
-  return NextResponse.json(newAppointment, { status: 201 })
 }
 
 export async function PUT(request: NextRequest) {
-  const { searchParams } = new URL(request.url)
-  const id = parseInt(searchParams.get("id") || "0")
-  const body = await request.json()
+  try {
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get("id")
+    if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 })
 
-  const index = mockAppointments.findIndex((a) => a.id === id)
-  if (index >= 0) {
-    mockAppointments[index] = { ...mockAppointments[index], ...body }
-    return NextResponse.json(mockAppointments[index])
+    const body = await request.json()
+    const updated = await update("appointments", id, body)
+    if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 })
+    return NextResponse.json(updated)
+  } catch (error: any) {
+    console.error("Database error updating appointment:", error.message)
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
-
-  return NextResponse.json({ error: "Not found" }, { status: 404 })
 }
 
 export async function DELETE(request: NextRequest) {
-  const { searchParams } = new URL(request.url)
-  const id = parseInt(searchParams.get("id") || "0")
+  try {
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get("id")
+    if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 })
 
-  const index = mockAppointments.findIndex((a) => a.id === id)
-  if (index >= 0) {
-    mockAppointments.splice(index, 1)
+    await remove("appointments", id)
     return NextResponse.json({ success: true })
+  } catch (error: any) {
+    console.error("Database error deleting appointment:", error.message)
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
-
-  return NextResponse.json({ error: "Not found" }, { status: 404 })
 }

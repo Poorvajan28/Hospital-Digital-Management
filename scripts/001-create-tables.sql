@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS staff (
 -- Patients
 CREATE TABLE IF NOT EXISTS patients (
   id SERIAL PRIMARY KEY,
+  patient_id VARCHAR(50) UNIQUE,
   first_name VARCHAR(100) NOT NULL,
   last_name VARCHAR(100) NOT NULL,
   email VARCHAR(150),
@@ -124,5 +125,17 @@ CREATE TABLE IF NOT EXISTS rooms (
   beds_occupied INTEGER DEFAULT 0,
   status VARCHAR(20) DEFAULT 'available', -- available, occupied, maintenance
   daily_rate NUMERIC(10, 2),
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Users (for authentication)
+CREATE TABLE IF NOT EXISTS users (
+  id SERIAL PRIMARY KEY,
+  id_ref VARCHAR(50), -- Reference to patient_id or staff_id
+  name VARCHAR(100) NOT NULL,
+  email VARCHAR(150) UNIQUE NOT NULL,
+  password VARCHAR(255) NOT NULL,
+  role VARCHAR(50) NOT NULL DEFAULT 'patient',
+  department VARCHAR(100),
   created_at TIMESTAMP DEFAULT NOW()
 );

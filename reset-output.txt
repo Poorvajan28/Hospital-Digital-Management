@@ -1,0 +1,13 @@
+﻿≡ƒöù Neon HTTP SQL API: https://ep-weathered-term-ait16zkq-pooler.c-4.us-east-1.aws.neon.tech/sql
+   Database: neondb, User: neondb_owner
+
+≡ƒöä Resetting database...
+
+node.exe : 
+At C:\Program Files\nodejs\npx.ps1:29 char:3
++   & $NODE_EXE $NPX_CLI_JS $args
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Γ¥î Failed: fetch failed

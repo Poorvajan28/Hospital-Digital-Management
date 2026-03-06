@@ -48,6 +48,8 @@ export default withAuth(
                     req.nextUrl.pathname.startsWith("/reset-password") ||
                     req.nextUrl.pathname === "/unauthorized" ||
                     req.nextUrl.pathname.startsWith("/api/auth") ||
+                    req.nextUrl.pathname === "/api/patients" ||
+                    req.nextUrl.pathname.startsWith("/api/debug") ||
                     req.nextUrl.pathname.startsWith("/_next") ||
                     req.nextUrl.pathname.startsWith("/images") ||
                     req.nextUrl.pathname.startsWith("/icon") ||

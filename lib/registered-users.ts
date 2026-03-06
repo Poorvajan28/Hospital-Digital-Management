@@ -1,56 +1,95 @@
-// In-memory storage for registered patients
-// In production, this would be stored in a database
+// Database-backed storage for registered users
+import { query, insert } from './db'
 
-interface RegisteredUser {
+export interface RegisteredUser {
     id: string
     email: string
-    password: string // In production, this should be hashed
+    password: string
     name: string
-    role: "patient"
-    firstName: string
-    lastName: string
+    role: string
+    department?: string | null
 }
 
-// Store registered patients (in production, use database)
-const registeredPatients: Map<string, RegisteredUser> = new Map()
-
-export function addRegisteredPatient(patient: {
+/**
+ * Add a new registered user (patient or staff)
+ */
+export async function addRegisteredPatient(patient: {
     id: string
     email: string
     password: string
     firstName: string
     lastName: string
+    role?: string
 }) {
-    const user: RegisteredUser = {
-        id: patient.id,
-        email: patient.email,
-        password: patient.password,
-        name: `${patient.firstName} ${patient.lastName}`,
-        role: "patient",
-        firstName: patient.firstName,
-        lastName: patient.lastName
+    try {
+        const user = {
+            id_ref: patient.id,
+            email: patient.email.toLowerCase(),
+            password: patient.password, // In production, this should be hashed
+            name: `${patient.firstName} ${patient.lastName}`,
+            role: patient.role || "patient"
+        }
+
+        const newUser = await insert("users", user)
+        console.log("✅ User registered in database:", patient.email)
+        return newUser
+    } catch (error: any) {
+        console.error("❌ Failed to register user in database:", error.message)
+        // Check if user already exists
+        if (error.message.includes("unique-constraint") || error.message.includes("already exists")) {
+            console.log("User already exists, skipping insertion")
+            return null
+        }
+        throw error
     }
-    registeredPatients.set(patient.email.toLowerCase(), user)
-    console.log("Registered patient added:", patient.email, "with password:", patient.password ? "YES" : "NO")
-    console.log("Total registered patients:", registeredPatients.size)
 }
 
-export function getRegisteredPatient(email: string): RegisteredUser | undefined {
-    return registeredPatients.get(email.toLowerCase())
-}
-
-export function validatePatientCredentials(email: string, password: string): RegisteredUser | null {
-    console.log("Validating credentials for:", email)
-    console.log("Registered patients:", Array.from(registeredPatients.entries()))
-    const user = registeredPatients.get(email.toLowerCase())
-    console.log("Found user:", user)
-    console.log("Password match:", user?.password === password)
-    if (user && user.password === password) {
-        return user
+/**
+ * Get a user by email from the database
+ */
+export async function getRegisteredPatient(email: string): Promise<RegisteredUser | undefined> {
+    try {
+        const users = await query<RegisteredUser>(
+            "SELECT id::text, email, password, name, role, department FROM users WHERE email = $1",
+            [email.toLowerCase()]
+        )
+        return users[0]
+    } catch (error) {
+        console.error("❌ Database error fetching user:", error)
+        return undefined
     }
-    return null
 }
 
-export function getAllRegisteredPatients(): RegisteredUser[] {
-    return Array.from(registeredPatients.values())
+/**
+ * Validate user credentials against the database
+ */
+export async function validatePatientCredentials(email: string, password: string): Promise<RegisteredUser | null> {
+    console.log("🔍 Validating database credentials for:", email)
+
+    try {
+        const user = await getRegisteredPatient(email)
+
+        if (user && user.password === password) {
+            console.log("✅ Credentials valid for:", email)
+            return user
+        }
+
+        console.log("❌ Invalid credentials for:", email)
+        return null
+    } catch (error) {
+        console.error("❌ Error validating credentials:", error)
+        return null
+    }
+}
+
+/**
+ * Get all registered users from the database
+ */
+export async function getAllRegisteredPatients(): Promise<RegisteredUser[]> {
+    try {
+        return await query<RegisteredUser>("SELECT id::text, email, name, role, department FROM users")
+    } catch (error) {
+        console.error("❌ Error fetching all users:", error)
+        return []
+    }
 }
