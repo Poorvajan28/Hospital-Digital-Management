@@ -8,17 +8,17 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Users, Plus, Search, Mail, Phone, UserCircle } from "lucide-react"
+import { Users, Plus, Search, Mail, Phone, UserCircle, ArrowUpDown } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 const roleColors: Record<string, string> = {
-  Doctor: "bg-[#2563eb]/10 text-[#2563eb]",
-  Nurse: "bg-[#059669]/10 text-[#059669]",
-  Technician: "bg-[#d97706]/10 text-[#d97706]",
-  Admin: "bg-[#6b7280]/10 text-[#6b7280]",
+  physician: "bg-[#2563eb]/10 text-[#2563eb]",
+  nurse: "bg-[#059669]/10 text-[#059669]",
+  technician: "bg-[#d97706]/10 text-[#d97706]",
+  admin: "bg-[#6b7280]/10 text-[#6b7280]",
 }
 
 const statusColors: Record<string, string> = {
@@ -32,13 +32,23 @@ export default function StaffPage() {
   const { data: departments } = useSWR("/api/departments", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
   const [search, setSearch] = useState("")
   const [roleFilter, setRoleFilter] = useState("all")
+  const [statusFilter, setStatusFilter] = useState("all")
+  const [sortBy, setSortBy] = useState<"name" | "date">("name")
   const [open, setOpen] = useState(false)
+
+  // Form state for controlled Selects
+  const [formRole, setFormRole] = useState("")
+  const [formDeptId, setFormDeptId] = useState("")
 
   const filtered = staff?.filter((s: Record<string, string>) => {
     const matchesSearch =
       `${s.first_name} ${s.last_name} ${s.email} ${s.specialization}`.toLowerCase().includes(search.toLowerCase())
     const matchesRole = roleFilter === "all" || s.role === roleFilter
-    return matchesSearch && matchesRole
+    const matchesStatus = statusFilter === "all" || s.status === statusFilter
+    return matchesSearch && matchesRole && matchesStatus
+  })?.sort((a: Record<string, string>, b: Record<string, string>) => {
+    if (sortBy === "name") return `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`)
+    return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
   })
 
   async function handleAddStaff(e: React.FormEvent<HTMLFormElement>) {
@@ -49,25 +59,33 @@ export default function StaffPage() {
       last_name: form.get("last_name"),
       email: form.get("email"),
       phone: form.get("phone"),
-      role: form.get("role"),
-      department_id: form.get("department_id") ? Number(form.get("department_id")) : null,
+      role: formRole,
+      department_id: formDeptId ? Number(formDeptId) : null,
       specialization: form.get("specialization"),
       salary: form.get("salary") ? Number(form.get("salary")) : null,
+      status: "active",
+    }
+    if (!body.first_name || !body.last_name || !body.role) {
+      toast.error("Please fill in required fields (name and role)")
+      return
     }
     const res = await fetch("/api/staff", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
     if (res.ok) {
       toast.success("Staff member added successfully")
       mutate()
       setOpen(false)
+      setFormRole("")
+      setFormDeptId("")
     } else {
-      toast.error("Failed to add staff member")
+      const err = await res.json().catch(() => ({}))
+      toast.error(err.error || "Failed to add staff member")
     }
   }
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="relative flex-1 sm:w-80">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input placeholder="Search staff..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10 border-border/50" />
@@ -78,14 +96,29 @@ export default function StaffPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Roles</SelectItem>
-              <SelectItem value="Doctor">Doctor</SelectItem>
-              <SelectItem value="Nurse">Nurse</SelectItem>
-              <SelectItem value="Technician">Technician</SelectItem>
-              <SelectItem value="Admin">Admin</SelectItem>
+              <SelectItem value="physician">Physician</SelectItem>
+              <SelectItem value="nurse">Nurse</SelectItem>
+              <SelectItem value="technician">Technician</SelectItem>
+              <SelectItem value="admin">Admin</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-32 border-border/50">
+              <SelectValue placeholder="All Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="on_leave">On Leave</SelectItem>
+              <SelectItem value="inactive">Inactive</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button variant="outline" size="sm" onClick={() => setSortBy(sortBy === "name" ? "date" : "name")} className="gap-1.5">
+            <ArrowUpDown className="h-3.5 w-3.5" />
+            {sortBy === "name" ? "A-Z" : "Newest"}
+          </Button>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setFormRole(""); setFormDeptId(""); } }}>
           <DialogTrigger asChild>
             <Button className="gap-2 shadow-lg shadow-primary/20">
               <Plus className="h-4 w-4" />
@@ -99,17 +132,17 @@ export default function StaffPage() {
             <form onSubmit={handleAddStaff} className="grid gap-4 pt-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="first_name">First Name</Label>
+                  <Label htmlFor="first_name">First Name *</Label>
                   <Input id="first_name" name="first_name" required className="border-border/50" />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="last_name">Last Name</Label>
+                  <Label htmlFor="last_name">Last Name *</Label>
                   <Input id="last_name" name="last_name" required className="border-border/50" />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
-                <Input id="email" name="email" type="email" required className="border-border/50" />
+                <Input id="email" name="email" type="email" className="border-border/50" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="phone">Phone</Label>
@@ -117,20 +150,20 @@ export default function StaffPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="role">Role</Label>
-                  <Select name="role" required>
+                  <Label>Role *</Label>
+                  <Select value={formRole} onValueChange={setFormRole}>
                     <SelectTrigger><SelectValue placeholder="Select role" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Doctor">Doctor</SelectItem>
-                      <SelectItem value="Nurse">Nurse</SelectItem>
-                      <SelectItem value="Technician">Technician</SelectItem>
-                      <SelectItem value="Admin">Admin</SelectItem>
+                      <SelectItem value="physician">Physician</SelectItem>
+                      <SelectItem value="nurse">Nurse</SelectItem>
+                      <SelectItem value="technician">Technician</SelectItem>
+                      <SelectItem value="admin">Admin</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="department_id">Department</Label>
-                  <Select name="department_id">
+                  <Label>Department</Label>
+                  <Select value={formDeptId} onValueChange={setFormDeptId}>
                     <SelectTrigger><SelectValue placeholder="Select dept" /></SelectTrigger>
                     <SelectContent>
                       {departments?.map((d: { id: number; name: string }) => (
@@ -185,7 +218,7 @@ export default function StaffPage() {
                       </div>
                       <div>
                         <CardTitle className="text-base font-bold text-foreground">
-                          {member.role === "Doctor" ? "Dr. " : ""}
+                          {member.role === "physician" ? "Dr. " : ""}
                           {member.first_name} {member.last_name}
                         </CardTitle>
                         <p className="mt-0.5 text-xs text-muted-foreground">{member.specialization || member.role}</p>

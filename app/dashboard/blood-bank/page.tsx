@@ -28,26 +28,50 @@ export default function BloodBankPage() {
   const { data: donors, mutate } = useSWR("/api/blood-donors", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
   const { data: stock } = useSWR("/api/blood-stock", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
   const [search, setSearch] = useState("")
+  const [bloodFilter, setBloodFilter] = useState("all")
   const [open, setOpen] = useState(false)
 
-  const filtered = donors?.filter((d: Record<string, string>) =>
-    `${d.first_name} ${d.last_name} ${d.blood_group} ${d.email}`.toLowerCase().includes(search.toLowerCase())
-  )
+  // Controlled form state
+  const [formBlood, setFormBlood] = useState("")
+  const [formGender, setFormGender] = useState("")
+
+  const filtered = donors?.filter((d: Record<string, string>) => {
+    const matchesSearch = `${d.first_name} ${d.last_name} ${d.blood_group} ${d.email}`.toLowerCase().includes(search.toLowerCase())
+    const matchesBlood = bloodFilter === "all" || d.blood_group === bloodFilter
+    return matchesSearch && matchesBlood
+  })
 
   const totalUnits = stock?.reduce((sum: number, s: { units_available: number }) => sum + Number(s.units_available), 0) || 0
   const criticalStock = stock?.filter((s: { units_available: number }) => Number(s.units_available) < 10) || []
 
+  function resetForm() { setFormBlood(""); setFormGender("") }
+
   async function handleAdd(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const form = new FormData(e.currentTarget)
-    const body = Object.fromEntries(form.entries())
+    const body = {
+      first_name: form.get("first_name"),
+      last_name: form.get("last_name"),
+      email: form.get("email"),
+      phone: form.get("phone"),
+      blood_group: formBlood,
+      date_of_birth: form.get("date_of_birth"),
+      gender: formGender,
+      address: form.get("address"),
+    }
+    if (!body.first_name || !body.last_name || !body.blood_group) {
+      toast.error("Please fill in name and blood group")
+      return
+    }
     const res = await fetch("/api/blood-donors", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
     if (res.ok) {
       toast.success("Blood donor registered successfully")
       mutate()
       setOpen(false)
+      resetForm()
     } else {
-      toast.error("Failed to register donor")
+      const err = await res.json().catch(() => ({}))
+      toast.error(err.error || "Failed to register donor")
     }
   }
 
@@ -129,11 +153,22 @@ export default function BloodBankPage() {
 
       {/* Donors List */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative flex-1 sm:w-80">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input placeholder="Search donors..." value={search} onChange={(e) => setSearch(e.target.value)} className="border-border/50 pl-10" />
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 sm:w-80">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input placeholder="Search donors..." value={search} onChange={(e) => setSearch(e.target.value)} className="border-border/50 pl-10" />
+          </div>
+          <Select value={bloodFilter} onValueChange={setBloodFilter}>
+            <SelectTrigger className="w-28 border-border/50"><SelectValue placeholder="Blood" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Blood</SelectItem>
+              {["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"].map(bg => (
+                <SelectItem key={bg} value={bg}>{bg}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm() }}>
           <DialogTrigger asChild>
             <Button className="gap-2 shadow-lg shadow-primary/20"><Plus className="h-4 w-4" />Register Donor</Button>
           </DialogTrigger>
@@ -141,8 +176,8 @@ export default function BloodBankPage() {
             <DialogHeader><DialogTitle className="text-xl">Register Blood Donor</DialogTitle></DialogHeader>
             <form onSubmit={handleAdd} className="grid gap-4 pt-4">
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2"><Label>First Name</Label><Input name="first_name" required className="border-border/50" /></div>
-                <div className="space-y-2"><Label>Last Name</Label><Input name="last_name" required className="border-border/50" /></div>
+                <div className="space-y-2"><Label>First Name *</Label><Input name="first_name" required className="border-border/50" /></div>
+                <div className="space-y-2"><Label>Last Name *</Label><Input name="last_name" required className="border-border/50" /></div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2"><Label>Email</Label><Input name="email" type="email" className="border-border/50" /></div>
@@ -150,8 +185,8 @@ export default function BloodBankPage() {
               </div>
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label>Blood Group</Label>
-                  <Select name="blood_group" required>
+                  <Label>Blood Group *</Label>
+                  <Select value={formBlood} onValueChange={setFormBlood}>
                     <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                     <SelectContent>
                       {["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"].map(bg => (
@@ -163,7 +198,7 @@ export default function BloodBankPage() {
                 <div className="space-y-2"><Label>DOB</Label><Input name="date_of_birth" type="date" className="border-border/50" /></div>
                 <div className="space-y-2">
                   <Label>Gender</Label>
-                  <Select name="gender">
+                  <Select value={formGender} onValueChange={setFormGender}>
                     <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Male">Male</SelectItem>

@@ -1,10 +1,14 @@
 "use client"
 
 import { useState } from "react"
+import useSWR from "swr"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
     Stethoscope,
@@ -13,208 +17,100 @@ import {
     Wrench,
     CheckCircle2,
     AlertTriangle,
-    Calendar,
+    Clock,
     Building,
-    MoreHorizontal,
-    Clock
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { formatIndianDate } from "@/lib/indian-utils"
+import { toast } from "sonner"
 
-interface Equipment {
-    id: string
-    name: string
-    type: string
-    department: string
-    status: 'available' | 'in_use' | 'maintenance' | 'out_of_order'
-    serialNumber: string
-    purchaseDate: string
-    warrantyExpiry: string
-    lastMaintenance: string
-    nextMaintenance: string
-    maintenanceCost: number
-    supplier: string
-}
+const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
-const equipment: Equipment[] = [
-    {
-        id: '1',
-        name: 'Ventilator',
-        type: 'Life Support',
-        department: 'ICU',
-        status: 'in_use',
-        serialNumber: 'VN-2023-001',
-        purchaseDate: '15/03/2023',
-        warrantyExpiry: '15/03/2026',
-        lastMaintenance: '15/02/2026',
-        nextMaintenance: '15/03/2026',
-        maintenanceCost: 15000,
-        supplier: 'Meditech India Pvt Ltd'
-    },
-    {
-        id: '2',
-        name: 'X-Ray Machine',
-        type: 'Diagnostic',
-        department: 'Radiology',
-        status: 'available',
-        serialNumber: 'XR-2022-005',
-        purchaseDate: '20/06/2022',
-        warrantyExpiry: '20/06/2025',
-        lastMaintenance: '01/02/2026',
-        nextMaintenance: '01/05/2026',
-        maintenanceCost: 25000,
-        supplier: 'Siemens Healthcare'
-    },
-    {
-        id: '3',
-        name: 'MRI Scanner',
-        type: 'Diagnostic',
-        department: 'Radiology',
-        status: 'maintenance',
-        serialNumber: 'MRI-2021-002',
-        purchaseDate: '10/01/2021',
-        warrantyExpiry: '10/01/2024',
-        lastMaintenance: '01/01/2026',
-        nextMaintenance: 'Ongoing',
-        maintenanceCost: 50000,
-        supplier: 'GE Healthcare'
-    },
-    {
-        id: '4',
-        name: 'Defibrillator',
-        type: 'Emergency',
-        department: 'Emergency',
-        status: 'available',
-        serialNumber: 'DF-2023-008',
-        purchaseDate: '05/08/2023',
-        warrantyExpiry: '05/08/2026',
-        lastMaintenance: '10/02/2026',
-        nextMaintenance: '10/03/2026',
-        maintenanceCost: 3000,
-        supplier: 'Phillips Medical'
-    },
-    {
-        id: '5',
-        name: 'Dialysis Machine',
-        type: 'Therapeutic',
-        department: 'Nephrology',
-        status: 'in_use',
-        serialNumber: 'DM-2022-003',
-        purchaseDate: '12/04/2022',
-        warrantyExpiry: '12/04/2025',
-        lastMaintenance: '20/02/2026',
-        nextMaintenance: '20/03/2026',
-        maintenanceCost: 12000,
-        supplier: 'Fresenius Medical Care'
-    },
-    {
-        id: '6',
-        name: 'ECG Machine',
-        type: 'Diagnostic',
-        department: 'Cardiology',
-        status: 'available',
-        serialNumber: 'ECG-2023-012',
-        purchaseDate: '18/09/2023',
-        warrantyExpiry: '18/09/2026',
-        lastMaintenance: '18/01/2026',
-        nextMaintenance: '18/04/2026',
-        maintenanceCost: 5000,
-        supplier: 'Meditech India Pvt Ltd'
-    },
-    {
-        id: '7',
-        name: 'Ultrasound Machine',
-        type: 'Diagnostic',
-        department: 'Radiology',
-        status: 'in_use',
-        serialNumber: 'US-2022-007',
-        purchaseDate: '22/07/2022',
-        warrantyExpiry: '22/07/2025',
-        lastMaintenance: '22/02/2026',
-        nextMaintenance: '22/05/2026',
-        maintenanceCost: 18000,
-        supplier: 'GE Healthcare'
-    },
-    {
-        id: '8',
-        name: 'Anesthesia Machine',
-        type: 'Surgical',
-        department: 'OT',
-        status: 'available',
-        serialNumber: 'AM-2021-004',
-        purchaseDate: '30/11/2021',
-        warrantyExpiry: '30/11/2024',
-        lastMaintenance: '30/01/2026',
-        nextMaintenance: '30/04/2026',
-        maintenanceCost: 20000,
-        supplier: 'Drager India'
-    },
-    {
-        id: '9',
-        name: 'Patient Monitor',
-        type: 'Monitoring',
-        department: 'ICU',
-        status: 'in_use',
-        serialNumber: 'PM-2023-015',
-        purchaseDate: '08/12/2023',
-        warrantyExpiry: '08/12/2026',
-        lastMaintenance: '08/02/2026',
-        nextMaintenance: '08/05/2026',
-        maintenanceCost: 8000,
-        supplier: 'Phillips Medical'
-    },
-    {
-        id: '10',
-        name: 'Infusion Pump',
-        type: 'Therapeutic',
-        department: 'General Ward',
-        status: 'out_of_order',
-        serialNumber: 'IP-2022-009',
-        purchaseDate: '14/05/2022',
-        warrantyExpiry: '14/05/2025',
-        lastMaintenance: '14/02/2026',
-        nextMaintenance: 'Awaiting Parts',
-        maintenanceCost: 6000,
-        supplier: 'Baxter Healthcare'
-    },
-]
-
-const getStatusColor = (status: Equipment['status']) => {
-    const colors = {
+const getStatusColor = (status: string) => {
+    const colors: Record<string, string> = {
+        in_stock: 'bg-emerald-100 text-emerald-800 border-emerald-200',
         available: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-        in_use: 'bg-blue-100 text-blue-800 border-blue-200',
-        maintenance: 'bg-amber-100 text-amber-800 border-amber-200',
-        out_of_order: 'bg-rose-100 text-rose-800 border-rose-200',
+        low_stock: 'bg-amber-100 text-amber-800 border-amber-200',
+        out_of_stock: 'bg-rose-100 text-rose-800 border-rose-200',
     }
-    return colors[status]
+    return colors[status] || colors.in_stock
 }
 
-const departments = ['All', 'ICU', 'Radiology', 'Emergency', 'Nephrology', 'Cardiology', 'OT', 'General Ward']
+const statusLabel = (status: string) => {
+    const labels: Record<string, string> = {
+        in_stock: 'available',
+        low_stock: 'maintenance',
+        out_of_stock: 'out of order',
+    }
+    return labels[status] || status.replace(/_/g, ' ')
+}
 
 export default function EquipmentManagementPage() {
+    const { data: equipment, mutate } = useSWR("/api/inventory", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
     const [searchTerm, setSearchTerm] = useState('')
-    const [selectedDept, setSelectedDept] = useState('All')
+    const [selectedCategory, setSelectedCategory] = useState('all')
+    const [open, setOpen] = useState(false)
+    const [formCategory, setFormCategory] = useState("")
 
-    const filteredEquipment = equipment.filter(eq => {
-        const matchesSearch = eq.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            eq.serialNumber.toLowerCase().includes(searchTerm.toLowerCase())
-        const matchesDept = selectedDept === 'All' || eq.department === selectedDept
-        return matchesSearch && matchesDept
-    })
+    // Filter to equipment category items
+    const equipmentItems = equipment?.filter((e: Record<string, string>) => e.category === 'Equipment') || []
+    const allItems = equipment || []
+
+    const filteredEquipment = (selectedCategory === 'all' ? allItems : allItems.filter((eq: Record<string, string>) => eq.category === selectedCategory))
+        .filter((eq: Record<string, string>) => {
+            const matchesSearch = eq.item_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                eq.supplier?.toLowerCase().includes(searchTerm.toLowerCase())
+            return matchesSearch
+        })
 
     const stats = {
-        total: equipment.length,
-        available: equipment.filter(e => e.status === 'available').length,
-        inUse: equipment.filter(e => e.status === 'in_use').length,
-        maintenance: equipment.filter(e => e.status === 'maintenance').length,
-        outOfOrder: equipment.filter(e => e.status === 'out_of_order').length,
+        total: allItems.length,
+        available: allItems.filter((e: { status: string }) => e.status === 'in_stock').length,
+        lowStock: allItems.filter((e: { status: string }) => e.status === 'low_stock').length,
+        outOfStock: allItems.filter((e: { status: string }) => e.status === 'out_of_stock').length,
+        equipment: equipmentItems.length,
     }
 
-    const upcomingMaintenance = equipment.filter(e => {
-        if (e.status === 'maintenance' || e.status === 'out_of_order') return false
-        // Check if maintenance is within next 30 days
-        return true // Simplified for demo
-    })
+    async function handleAdd(e: React.FormEvent<HTMLFormElement>) {
+        e.preventDefault()
+        const form = new FormData(e.currentTarget)
+        const body = {
+            item_name: form.get("item_name"),
+            category: formCategory || "Equipment",
+            quantity: Number(form.get("quantity") || 1),
+            unit: "pieces",
+            min_stock_level: Number(form.get("min_stock_level") || 1),
+            supplier: form.get("supplier"),
+            unit_price: form.get("unit_price") ? Number(form.get("unit_price")) : null,
+        }
+        if (!body.item_name) {
+            toast.error("Please fill in the equipment name")
+            return
+        }
+        const res = await fetch("/api/inventory", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+        if (res.ok) {
+            toast.success("Equipment added successfully")
+            mutate()
+            setOpen(false)
+            setFormCategory("")
+        } else {
+            const err = await res.json().catch(() => ({}))
+            toast.error(err.error || "Failed to add equipment")
+        }
+    }
+
+    async function handleStatusChange(id: number, newStatus: string) {
+        const res = await fetch(`/api/inventory?id=${id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status: newStatus })
+        })
+        if (res.ok) {
+            toast.success("Status updated successfully")
+            mutate()
+        } else {
+            toast.error("Failed to update status")
+        }
+    }
 
     return (
         <div className="space-y-6 p-6">
@@ -222,55 +118,55 @@ export default function EquipmentManagementPage() {
             <div className="flex flex-col gap-2">
                 <h1 className="text-2xl font-bold tracking-tight">Equipment Management</h1>
                 <p className="text-muted-foreground">
-                    Track medical equipment status, maintenance schedules, and availability
+                    Track medical equipment status, inventory, and availability
                 </p>
             </div>
 
             {/* Stats Cards */}
             <div className="grid gap-4 md:grid-cols-5">
-                <Card>
+                <Card className="animate-fade-in transition-all hover:-translate-y-0.5 hover:shadow-lg [animation-delay:0ms]">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Total Equipment</CardTitle>
+                        <CardTitle className="text-sm font-medium">Total Items</CardTitle>
                         <Stethoscope className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{stats.total}</div>
                     </CardContent>
                 </Card>
-                <Card>
+                <Card className="animate-fade-in transition-all hover:-translate-y-0.5 hover:shadow-lg [animation-delay:50ms]">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Available</CardTitle>
+                        <CardTitle className="text-sm font-medium">In Stock</CardTitle>
                         <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-emerald-600">{stats.available}</div>
                     </CardContent>
                 </Card>
-                <Card>
+                <Card className="animate-fade-in transition-all hover:-translate-y-0.5 hover:shadow-lg [animation-delay:100ms]">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">In Use</CardTitle>
+                        <CardTitle className="text-sm font-medium">Equipment</CardTitle>
                         <Clock className="h-4 w-4 text-blue-600" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-blue-600">{stats.inUse}</div>
+                        <div className="text-2xl font-bold text-blue-600">{stats.equipment}</div>
                     </CardContent>
                 </Card>
-                <Card>
+                <Card className="animate-fade-in transition-all hover:-translate-y-0.5 hover:shadow-lg [animation-delay:150ms]">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Maintenance</CardTitle>
+                        <CardTitle className="text-sm font-medium">Low Stock</CardTitle>
                         <Wrench className="h-4 w-4 text-amber-600" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-amber-600">{stats.maintenance}</div>
+                        <div className="text-2xl font-bold text-amber-600">{stats.lowStock}</div>
                     </CardContent>
                 </Card>
-                <Card>
+                <Card className="animate-fade-in transition-all hover:-translate-y-0.5 hover:shadow-lg [animation-delay:200ms]">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Out of Order</CardTitle>
+                        <CardTitle className="text-sm font-medium">Out of Stock</CardTitle>
                         <AlertTriangle className="h-4 w-4 text-rose-600" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-rose-600">{stats.outOfOrder}</div>
+                        <div className="text-2xl font-bold text-rose-600">{stats.outOfStock}</div>
                     </CardContent>
                 </Card>
             </div>
@@ -280,160 +176,163 @@ export default function EquipmentManagementPage() {
                 <div className="relative w-full sm:w-96">
                     <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
-                        placeholder="Search equipment name or serial number..."
+                        placeholder="Search equipment name or supplier..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="pl-10"
                     />
                 </div>
                 <div className="flex gap-2">
-                    <select
-                        value={selectedDept}
-                        onChange={(e) => setSelectedDept(e.target.value)}
-                        className="rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    >
-                        {departments.map(dept => (
-                            <option key={dept} value={dept}>{dept}</option>
-                        ))}
-                    </select>
-                    <Button>
-                        <Plus className="mr-2 h-4 w-4" />
-                        Add Equipment
-                    </Button>
+                    <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                        <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All Categories</SelectItem>
+                            <SelectItem value="Equipment">Equipment</SelectItem>
+                            <SelectItem value="Medicine">Medicine</SelectItem>
+                            <SelectItem value="Supplies">Supplies</SelectItem>
+                            <SelectItem value="PPE">PPE</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setFormCategory("") }}>
+                        <DialogTrigger asChild>
+                            <Button>
+                                <Plus className="mr-2 h-4 w-4" />
+                                Add Equipment
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-lg">
+                            <DialogHeader><DialogTitle>Add New Equipment</DialogTitle></DialogHeader>
+                            <form onSubmit={handleAdd} className="grid gap-4 pt-4">
+                                <div className="space-y-2"><Label>Equipment Name *</Label><Input name="item_name" required /></div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label>Category</Label>
+                                        <Select value={formCategory} onValueChange={setFormCategory}>
+                                            <SelectTrigger><SelectValue placeholder="Equipment" /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="Equipment">Equipment</SelectItem>
+                                                <SelectItem value="Medicine">Medicine</SelectItem>
+                                                <SelectItem value="Supplies">Supplies</SelectItem>
+                                                <SelectItem value="PPE">PPE</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-2"><Label>Quantity</Label><Input name="quantity" type="number" defaultValue="1" /></div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2"><Label>Unit Price ($)</Label><Input name="unit_price" type="number" step="0.01" /></div>
+                                    <div className="space-y-2"><Label>Min Stock Level</Label><Input name="min_stock_level" type="number" defaultValue="1" /></div>
+                                </div>
+                                <div className="space-y-2"><Label>Supplier</Label><Input name="supplier" /></div>
+                                <Button type="submit" className="w-full">Add Equipment</Button>
+                            </form>
+                        </DialogContent>
+                    </Dialog>
                 </div>
             </div>
 
             {/* Equipment List */}
             <Tabs defaultValue="all" className="w-full">
-                <TabsList className="grid w-full grid-cols-5 lg:w-[600px]">
+                <TabsList className="grid w-full grid-cols-4 lg:w-[500px]">
                     <TabsTrigger value="all">All</TabsTrigger>
-                    <TabsTrigger value="available">Available</TabsTrigger>
-                    <TabsTrigger value="in_use">In Use</TabsTrigger>
-                    <TabsTrigger value="maintenance">Maintenance</TabsTrigger>
-                    <TabsTrigger value="out_of_order">Out of Order</TabsTrigger>
+                    <TabsTrigger value="in_stock">In Stock</TabsTrigger>
+                    <TabsTrigger value="low_stock">Low Stock</TabsTrigger>
+                    <TabsTrigger value="out_of_stock">Out of Stock</TabsTrigger>
                 </TabsList>
 
-                {['all', 'available', 'in_use', 'maintenance', 'out_of_order'].map((tabValue) => (
+                {['all', 'in_stock', 'low_stock', 'out_of_stock'].map((tabValue) => (
                     <TabsContent key={tabValue} value={tabValue} className="mt-6">
-                        <div className="grid gap-4 md:grid-cols-2">
-                            {filteredEquipment
-                                .filter(eq => tabValue === 'all' || eq.status === tabValue)
-                                .map((eq) => (
-                                    <Card key={eq.id} className={cn(
-                                        "transition-all hover:shadow-md",
-                                        eq.status === 'out_of_order' && "border-rose-200",
-                                        eq.status === 'maintenance' && "border-amber-200"
-                                    )}>
-                                        <CardHeader className="pb-3">
-                                            <div className="flex items-start justify-between">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100">
-                                                        <Stethoscope className="h-5 w-5 text-slate-600" />
-                                                    </div>
-                                                    <div>
-                                                        <CardTitle className="text-base">{eq.name}</CardTitle>
-                                                        <CardDescription className="flex items-center gap-1">
-                                                            <Building className="h-3 w-3" />
-                                                            {eq.department}
-                                                        </CardDescription>
-                                                    </div>
-                                                </div>
-                                                <Badge variant="outline" className={getStatusColor(eq.status)}>
-                                                    {eq.status.replace('_', ' ')}
-                                                </Badge>
-                                            </div>
-                                        </CardHeader>
-                                        <CardContent className="pt-0">
-                                            <div className="space-y-2 text-sm">
-                                                <div className="flex justify-between">
-                                                    <span className="text-muted-foreground">Serial Number:</span>
-                                                    <span className="font-medium">{eq.serialNumber}</span>
-                                                </div>
-                                                <div className="flex justify-between">
-                                                    <span className="text-muted-foreground">Type:</span>
-                                                    <span>{eq.type}</span>
-                                                </div>
-                                                <div className="flex justify-between">
-                                                    <span className="text-muted-foreground">Supplier:</span>
-                                                    <span>{eq.supplier}</span>
-                                                </div>
-                                                <div className="flex justify-between">
-                                                    <span className="text-muted-foreground">Purchase Date:</span>
-                                                    <span>{eq.purchaseDate}</span>
-                                                </div>
-                                                <div className="flex justify-between">
-                                                    <span className="text-muted-foreground">Warranty Expires:</span>
-                                                    <span className={cn(
-                                                        eq.warrantyExpiry < '02/03/2026' && "text-amber-600 font-medium"
-                                                    )}>{eq.warrantyExpiry}</span>
-                                                </div>
-                                                <div className="border-t pt-2 mt-2">
-                                                    <div className="flex justify-between">
-                                                        <span className="text-muted-foreground">Last Maintenance:</span>
-                                                        <span>{eq.lastMaintenance}</span>
-                                                    </div>
-                                                    <div className="flex justify-between">
-                                                        <span className="text-muted-foreground">Next Maintenance:</span>
-                                                        <span className={cn(
-                                                            eq.nextMaintenance === 'Ongoing' && "text-amber-600 font-medium",
-                                                            eq.nextMaintenance === 'Awaiting Parts' && "text-rose-600 font-medium"
-                                                        )}>{eq.nextMaintenance}</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="mt-4 flex gap-2">
-                                                {eq.status === 'available' && (
-                                                    <Button size="sm" className="flex-1">Book Equipment</Button>
-                                                )}
-                                                {eq.status === 'in_use' && (
-                                                    <Button size="sm" variant="outline" className="flex-1">Release</Button>
-                                                )}
-                                                {(eq.status === 'maintenance' || eq.status === 'out_of_order') && (
-                                                    <Button size="sm" variant="outline" className="flex-1">Update Status</Button>
-                                                )}
-                                                <Button size="sm" variant="ghost">
-                                                    <MoreHorizontal className="h-4 w-4" />
-                                                </Button>
-                                            </div>
-                                        </CardContent>
-                                    </Card>
+                        {!equipment ? (
+                            <div className="grid gap-4 md:grid-cols-2">
+                                {[1, 2, 3, 4].map(i => (
+                                    <Card key={i}><CardContent className="p-6"><div className="h-40 animate-pulse rounded bg-muted" /></CardContent></Card>
                                 ))}
-                        </div>
+                            </div>
+                        ) : (
+                            <div className="grid gap-4 md:grid-cols-2">
+                                {filteredEquipment
+                                    .filter((eq: { status: string }) => tabValue === 'all' || eq.status === tabValue)
+                                    .map((eq: Record<string, string | number | null>, index: number) => (
+                                        <Card key={eq.id} className={cn(
+                                            "animate-fade-in transition-all hover:shadow-md",
+                                            eq.status === 'out_of_stock' && "border-rose-200",
+                                            eq.status === 'low_stock' && "border-amber-200"
+                                        )} style={{ animationDelay: `${index * 50}ms` }}>
+                                            <CardHeader className="pb-3">
+                                                <div className="flex items-start justify-between">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100">
+                                                            <Stethoscope className="h-5 w-5 text-slate-600" />
+                                                        </div>
+                                                        <div>
+                                                            <CardTitle className="text-base">{eq.item_name}</CardTitle>
+                                                            <CardDescription className="flex items-center gap-1">
+                                                                <Building className="h-3 w-3" />
+                                                                {eq.category}
+                                                            </CardDescription>
+                                                        </div>
+                                                    </div>
+                                                    <Badge variant="outline" className={getStatusColor(eq.status as string)}>
+                                                        {statusLabel(eq.status as string)}
+                                                    </Badge>
+                                                </div>
+                                            </CardHeader>
+                                            <CardContent className="pt-0">
+                                                <div className="space-y-2 text-sm">
+                                                    <div className="flex justify-between">
+                                                        <span className="text-muted-foreground">Quantity:</span>
+                                                        <span className="font-medium">{eq.quantity} {eq.unit}</span>
+                                                    </div>
+                                                    <div className="flex justify-between">
+                                                        <span className="text-muted-foreground">Min Stock:</span>
+                                                        <span>{eq.min_stock_level}</span>
+                                                    </div>
+                                                    {eq.supplier && (
+                                                        <div className="flex justify-between">
+                                                            <span className="text-muted-foreground">Supplier:</span>
+                                                            <span>{eq.supplier}</span>
+                                                        </div>
+                                                    )}
+                                                    {eq.unit_price && (
+                                                        <div className="flex justify-between">
+                                                            <span className="text-muted-foreground">Unit Price:</span>
+                                                            <span>${Number(eq.unit_price).toFixed(2)}</span>
+                                                        </div>
+                                                    )}
+                                                    {eq.expiry_date && (
+                                                        <div className="flex justify-between">
+                                                            <span className="text-muted-foreground">Expiry:</span>
+                                                            <span className={cn(
+                                                                new Date(eq.expiry_date as string) < new Date() && "text-rose-600 font-medium"
+                                                            )}>{new Date(eq.expiry_date as string).toLocaleDateString()}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="mt-4 flex gap-2">
+                                                    {eq.status === 'in_stock' && (
+                                                        <Button size="sm" variant="outline" className="flex-1" onClick={() => handleStatusChange(eq.id as number, 'low_stock')}>
+                                                            Mark Low Stock
+                                                        </Button>
+                                                    )}
+                                                    {eq.status === 'low_stock' && (
+                                                        <Button size="sm" className="flex-1" onClick={() => handleStatusChange(eq.id as number, 'in_stock')}>
+                                                            Restock
+                                                        </Button>
+                                                    )}
+                                                    {eq.status === 'out_of_stock' && (
+                                                        <Button size="sm" variant="outline" className="flex-1" onClick={() => handleStatusChange(eq.id as number, 'in_stock')}>
+                                                            Mark Available
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                    ))}
+                            </div>
+                        )}
                     </TabsContent>
                 ))}
             </Tabs>
-
-            {/* Maintenance Schedule Summary */}
-            <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <Calendar className="h-5 w-5" />
-                        Upcoming Maintenance
-                    </CardTitle>
-                    <CardDescription>Equipment requiring maintenance in the next 30 days</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="space-y-2">
-                        {upcomingMaintenance.slice(0, 3).map((eq) => (
-                            <div key={eq.id} className="flex items-center justify-between rounded-lg border p-3">
-                                <div className="flex items-center gap-3">
-                                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100">
-                                        <Wrench className="h-5 w-5 text-amber-600" />
-                                    </div>
-                                    <div>
-                                        <p className="font-medium">{eq.name}</p>
-                                        <p className="text-sm text-muted-foreground">{eq.department}</p>
-                                    </div>
-                                </div>
-                                <div className="text-right">
-                                    <p className="text-sm font-medium">Due: {eq.nextMaintenance}</p>
-                                    <p className="text-xs text-muted-foreground">Est. Cost: ₹{eq.maintenanceCost.toLocaleString('en-IN')}</p>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </CardContent>
-            </Card>
         </div>
     )
 }

@@ -21,18 +21,24 @@ export default function MedicalRecordsPage() {
   const [search, setSearch] = useState("")
   const [open, setOpen] = useState(false)
 
-  const doctors = staff?.filter((s: Record<string, string>) => s.role === "Doctor")
+  // Controlled form state
+  const [formPatient, setFormPatient] = useState("")
+  const [formDoctor, setFormDoctor] = useState("")
+
+  const doctors = staff?.filter((s: Record<string, string>) => s.role === "physician" || s.role === "Doctor")
 
   const filtered = records?.filter((r: Record<string, string>) =>
     `${r.patient_first} ${r.patient_last} ${r.doctor_first} ${r.doctor_last} ${r.diagnosis}`.toLowerCase().includes(search.toLowerCase())
   )
 
+  function resetForm() { setFormPatient(""); setFormDoctor("") }
+
   async function handleAdd(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const form = new FormData(e.currentTarget)
     const body = {
-      patient_id: Number(form.get("patient_id")),
-      doctor_id: Number(form.get("doctor_id")),
+      patient_id: Number(formPatient),
+      doctor_id: Number(formDoctor),
       diagnosis: form.get("diagnosis"),
       treatment: form.get("treatment"),
       prescription: form.get("prescription"),
@@ -40,13 +46,19 @@ export default function MedicalRecordsPage() {
       follow_up_date: form.get("follow_up_date") || null,
       notes: form.get("notes"),
     }
+    if (!body.patient_id || !body.doctor_id || !body.diagnosis) {
+      toast.error("Please fill in patient, doctor, and diagnosis")
+      return
+    }
     const res = await fetch("/api/medical-records", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
     if (res.ok) {
       toast.success("Medical record added successfully")
       mutate()
       setOpen(false)
+      resetForm()
     } else {
-      toast.error("Failed to add medical record")
+      const err = await res.json().catch(() => ({}))
+      toast.error(err.error || "Failed to add medical record")
     }
   }
 
@@ -57,7 +69,7 @@ export default function MedicalRecordsPage() {
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input placeholder="Search records..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm() }}>
           <DialogTrigger asChild>
             <Button className="gap-2"><Plus className="h-4 w-4" />Add Record</Button>
           </DialogTrigger>
@@ -66,8 +78,8 @@ export default function MedicalRecordsPage() {
             <form onSubmit={handleAdd} className="grid gap-4 pt-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Patient</Label>
-                  <Select name="patient_id" required>
+                  <Label>Patient *</Label>
+                  <Select value={formPatient} onValueChange={setFormPatient}>
                     <SelectTrigger><SelectValue placeholder="Select patient" /></SelectTrigger>
                     <SelectContent>
                       {patients?.map((p: { id: number; first_name: string; last_name: string }) => (
@@ -77,8 +89,8 @@ export default function MedicalRecordsPage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Doctor</Label>
-                  <Select name="doctor_id" required>
+                  <Label>Doctor *</Label>
+                  <Select value={formDoctor} onValueChange={setFormDoctor}>
                     <SelectTrigger><SelectValue placeholder="Select doctor" /></SelectTrigger>
                     <SelectContent>
                       {doctors?.map((d: { id: number; first_name: string; last_name: string }) => (
@@ -88,7 +100,7 @@ export default function MedicalRecordsPage() {
                   </Select>
                 </div>
               </div>
-              <div className="space-y-2"><Label>Diagnosis</Label><Textarea name="diagnosis" required rows={2} /></div>
+              <div className="space-y-2"><Label>Diagnosis *</Label><Textarea name="diagnosis" required rows={2} /></div>
               <div className="space-y-2"><Label>Treatment</Label><Textarea name="treatment" rows={2} /></div>
               <div className="space-y-2"><Label>Prescription</Label><Textarea name="prescription" rows={2} /></div>
               <div className="grid grid-cols-2 gap-4">

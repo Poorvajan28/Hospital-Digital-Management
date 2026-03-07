@@ -3,8 +3,15 @@
 import useSWR from "swr"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { BedDouble, DoorOpen } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { BedDouble, DoorOpen, Plus, Search } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
+import { useState } from "react"
+import { toast } from "sonner"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -23,11 +30,53 @@ const typeColors: Record<string, string> = {
 }
 
 export default function RoomsPage() {
-  const { data: rooms } = useSWR("/api/rooms", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
+  const { data: rooms, mutate } = useSWR("/api/rooms", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
+  const [search, setSearch] = useState("")
+  const [statusFilter, setStatusFilter] = useState("all")
+  const [typeFilter, setTypeFilter] = useState("all")
+  const [open, setOpen] = useState(false)
+
+  // Controlled form state
+  const [formType, setFormType] = useState("General")
+
+  const filtered = rooms?.filter((r: Record<string, string>) => {
+    const matchesSearch = `Room ${r.room_number} ${r.room_type} Floor ${r.floor}`.toLowerCase().includes(search.toLowerCase())
+    const matchesStatus = statusFilter === "all" || r.status === statusFilter
+    const matchesType = typeFilter === "all" || r.room_type === typeFilter
+    return matchesSearch && matchesStatus && matchesType
+  })
 
   const totalBeds = rooms?.reduce((sum: number, r: { beds_total: number }) => sum + Number(r.beds_total), 0) || 0
   const occupiedBeds = rooms?.reduce((sum: number, r: { beds_occupied: number }) => sum + Number(r.beds_occupied), 0) || 0
   const availableRooms = rooms?.filter((r: { status: string }) => r.status === "available").length || 0
+
+  async function handleAdd(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const form = new FormData(e.currentTarget)
+    const body = {
+      room_number: form.get("room_number"),
+      room_type: formType,
+      floor: Number(form.get("floor") || 1),
+      beds_total: Number(form.get("beds_total") || 1),
+      beds_occupied: 0,
+      daily_rate: Number(form.get("daily_rate") || 0),
+      status: "available",
+    }
+    if (!body.room_number) {
+      toast.error("Please fill in the room number")
+      return
+    }
+    const res = await fetch("/api/rooms", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+    if (res.ok) {
+      toast.success("Room added successfully")
+      mutate()
+      setOpen(false)
+      setFormType("General")
+    } else {
+      const err = await res.json().catch(() => ({}))
+      toast.error(err.error || "Failed to add room")
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -73,12 +122,75 @@ export default function RoomsPage() {
         </Card>
       </div>
 
-      {/* Room Grid */}
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <BedDouble className="h-4 w-4" />
-        <span>{rooms?.length || 0} rooms total</span>
+      {/* Filters & Add */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative sm:w-64">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input placeholder="Search rooms..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10 border-border/50" />
+          </div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-32 border-border/50"><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="available">Available</SelectItem>
+              <SelectItem value="occupied">Occupied</SelectItem>
+              <SelectItem value="maintenance">Maintenance</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={typeFilter} onValueChange={setTypeFilter}>
+            <SelectTrigger className="w-36 border-border/50"><SelectValue placeholder="Type" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Types</SelectItem>
+              <SelectItem value="General">General</SelectItem>
+              <SelectItem value="ICU">ICU</SelectItem>
+              <SelectItem value="Private">Private</SelectItem>
+              <SelectItem value="Semi-Private">Semi-Private</SelectItem>
+              <SelectItem value="Emergency">Emergency</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setFormType("General") }}>
+          <DialogTrigger asChild>
+            <Button className="gap-2 shadow-lg shadow-primary/20"><Plus className="h-4 w-4" />Add Room</Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader><DialogTitle>Add New Room</DialogTitle></DialogHeader>
+            <form onSubmit={handleAdd} className="grid gap-4 pt-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2"><Label>Room Number *</Label><Input name="room_number" required className="border-border/50" placeholder="e.g. 301" /></div>
+                <div className="space-y-2">
+                  <Label>Room Type</Label>
+                  <Select value={formType} onValueChange={setFormType}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="General">General</SelectItem>
+                      <SelectItem value="ICU">ICU</SelectItem>
+                      <SelectItem value="Private">Private</SelectItem>
+                      <SelectItem value="Semi-Private">Semi-Private</SelectItem>
+                      <SelectItem value="Emergency">Emergency</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2"><Label>Floor</Label><Input name="floor" type="number" defaultValue="1" className="border-border/50" /></div>
+                <div className="space-y-2"><Label>Total Beds</Label><Input name="beds_total" type="number" defaultValue="1" className="border-border/50" /></div>
+                <div className="space-y-2"><Label>Daily Rate ($)</Label><Input name="daily_rate" type="number" step="0.01" className="border-border/50" /></div>
+              </div>
+              <Button type="submit" className="w-full shadow-lg shadow-primary/20">Add Room</Button>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
 
+      {/* Room Count */}
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <BedDouble className="h-4 w-4" />
+        <span>{filtered?.length || 0} rooms shown</span>
+      </div>
+
+      {/* Room Grid */}
       {!rooms ? (
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {[1, 2, 3, 4, 5, 6].map((i) => (
@@ -89,7 +201,7 @@ export default function RoomsPage() {
         </div>
       ) : (
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {rooms.map((room: Record<string, string | number>, index: number) => {
+          {filtered?.map((room: Record<string, string | number>, index: number) => {
             const occupancy = Number(room.beds_total) > 0
               ? Math.round((Number(room.beds_occupied) / Number(room.beds_total)) * 100)
               : 0

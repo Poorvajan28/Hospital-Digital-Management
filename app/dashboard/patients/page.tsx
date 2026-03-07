@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
-import { Plus, Search, Activity } from "lucide-react"
+import { Plus, Search, Activity, ArrowUpDown } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
 
@@ -29,34 +29,80 @@ const bloodGroupColors: Record<string, string> = {
 export default function PatientsPage() {
   const { data: patients, mutate } = useSWR("/api/patients", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
   const [search, setSearch] = useState("")
+  const [bloodFilter, setBloodFilter] = useState("all")
+  const [sortBy, setSortBy] = useState<"name" | "date">("name")
   const [open, setOpen] = useState(false)
 
-  const filtered = patients?.filter((p: Record<string, string>) =>
-    `${p.first_name} ${p.last_name} ${p.email} ${p.blood_group} ${p.phone}`.toLowerCase().includes(search.toLowerCase())
-  )
+  // Controlled form state for Selects
+  const [formGender, setFormGender] = useState("")
+  const [formBlood, setFormBlood] = useState("")
+
+  const filtered = patients?.filter((p: Record<string, string>) => {
+    const matchesSearch = `${p.first_name} ${p.last_name} ${p.email} ${p.blood_group} ${p.phone}`.toLowerCase().includes(search.toLowerCase())
+    const matchesBlood = bloodFilter === "all" || p.blood_group === bloodFilter
+    return matchesSearch && matchesBlood
+  })?.sort((a: Record<string, string>, b: Record<string, string>) => {
+    if (sortBy === "name") return `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`)
+    return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+  })
+
+  function resetForm() { setFormGender(""); setFormBlood("") }
 
   async function handleAdd(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const form = new FormData(e.currentTarget)
-    const body = Object.fromEntries(form.entries())
+    const body = {
+      first_name: form.get("first_name"),
+      last_name: form.get("last_name"),
+      email: form.get("email"),
+      phone: form.get("phone"),
+      date_of_birth: form.get("date_of_birth"),
+      gender: formGender,
+      blood_group: formBlood,
+      address: form.get("address"),
+      emergency_contact: form.get("emergency_contact"),
+      emergency_phone: form.get("emergency_phone"),
+      insurance_id: form.get("insurance_id"),
+    }
+    if (!body.first_name || !body.last_name) {
+      toast.error("Please fill in the patient's name")
+      return
+    }
     const res = await fetch("/api/patients", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
     if (res.ok) {
       toast.success("Patient registered successfully")
       mutate()
       setOpen(false)
+      resetForm()
     } else {
-      toast.error("Failed to register patient")
+      const err = await res.json().catch(() => ({}))
+      toast.error(err.error || "Failed to register patient")
     }
   }
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative flex-1 sm:w-80">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input placeholder="Search patients..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 sm:w-80">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input placeholder="Search patients..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
+          </div>
+          <Select value={bloodFilter} onValueChange={setBloodFilter}>
+            <SelectTrigger className="w-28"><SelectValue placeholder="Blood" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Blood</SelectItem>
+              {["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"].map(bg => (
+                <SelectItem key={bg} value={bg}>{bg}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button variant="outline" size="sm" onClick={() => setSortBy(sortBy === "name" ? "date" : "name")} className="gap-1.5">
+            <ArrowUpDown className="h-3.5 w-3.5" />
+            {sortBy === "name" ? "A-Z" : "Newest"}
+          </Button>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm() }}>
           <DialogTrigger asChild>
             <Button className="gap-2"><Plus className="h-4 w-4" />Register Patient</Button>
           </DialogTrigger>
@@ -64,8 +110,8 @@ export default function PatientsPage() {
             <DialogHeader><DialogTitle>Register New Patient</DialogTitle></DialogHeader>
             <form onSubmit={handleAdd} className="grid gap-4 pt-4">
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2"><Label>First Name</Label><Input name="first_name" required /></div>
-                <div className="space-y-2"><Label>Last Name</Label><Input name="last_name" required /></div>
+                <div className="space-y-2"><Label>First Name *</Label><Input name="first_name" required /></div>
+                <div className="space-y-2"><Label>Last Name *</Label><Input name="last_name" required /></div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2"><Label>Email</Label><Input name="email" type="email" /></div>
@@ -75,7 +121,7 @@ export default function PatientsPage() {
                 <div className="space-y-2"><Label>Date of Birth</Label><Input name="date_of_birth" type="date" /></div>
                 <div className="space-y-2">
                   <Label>Gender</Label>
-                  <Select name="gender">
+                  <Select value={formGender} onValueChange={setFormGender}>
                     <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Male">Male</SelectItem>
@@ -85,7 +131,7 @@ export default function PatientsPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Blood Group</Label>
-                  <Select name="blood_group">
+                  <Select value={formBlood} onValueChange={setFormBlood}>
                     <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                     <SelectContent>
                       {["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"].map(bg => (
@@ -119,7 +165,7 @@ export default function PatientsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border/50 bg-muted/30">
-                <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Name</th>
+                <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-foreground" onClick={() => setSortBy("name")}>Name</th>
                 <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Contact</th>
                 <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">DOB</th>
                 <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Gender</th>

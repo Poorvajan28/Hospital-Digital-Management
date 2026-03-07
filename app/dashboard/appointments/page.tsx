@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
-import { Plus, Search, CalendarDays } from "lucide-react"
+import { Plus, Search, CalendarDays, ArrowUpDown } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
 
@@ -35,43 +35,64 @@ export default function AppointmentsPage() {
   const { data: departments } = useSWR("/api/departments", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
+  const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest")
   const [open, setOpen] = useState(false)
 
-  const doctors = staff?.filter((s: Record<string, string>) => s.role === "Doctor")
+  // Controlled form state for Selects
+  const [formPatient, setFormPatient] = useState("")
+  const [formDoctor, setFormDoctor] = useState("")
+  const [formDept, setFormDept] = useState("")
+  const [formType, setFormType] = useState("consultation")
+
+  const doctors = staff?.filter((s: Record<string, string>) => s.role === "physician" || s.role === "Doctor")
 
   const filtered = appointments?.filter((a: Record<string, string>) => {
     const matchesSearch =
       `${a.patient_first} ${a.patient_last} ${a.doctor_first} ${a.doctor_last} ${a.department_name}`.toLowerCase().includes(search.toLowerCase())
     const matchesStatus = statusFilter === "all" || a.status === statusFilter
     return matchesSearch && matchesStatus
+  })?.sort((a: Record<string, string>, b: Record<string, string>) => {
+    const dateA = new Date(`${a.appointment_date} ${a.appointment_time}`).getTime()
+    const dateB = new Date(`${b.appointment_date} ${b.appointment_time}`).getTime()
+    return sortOrder === "newest" ? dateB - dateA : dateA - dateB
   })
+
+  function resetForm() {
+    setFormPatient(""); setFormDoctor(""); setFormDept(""); setFormType("consultation")
+  }
 
   async function handleAdd(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const form = new FormData(e.currentTarget)
     const body = {
-      patient_id: Number(form.get("patient_id")),
-      doctor_id: Number(form.get("doctor_id")),
-      department_id: Number(form.get("department_id")),
+      patient_id: Number(formPatient),
+      doctor_id: Number(formDoctor),
+      department_id: Number(formDept),
       appointment_date: form.get("appointment_date"),
       appointment_time: form.get("appointment_time"),
-      type: form.get("type"),
+      type: formType,
       notes: form.get("notes"),
+    }
+    if (!body.patient_id || !body.doctor_id || !body.department_id || !body.appointment_date || !body.appointment_time) {
+      toast.error("Please fill in all required fields")
+      return
     }
     const res = await fetch("/api/appointments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
     if (res.ok) {
       toast.success("Appointment scheduled successfully")
       mutate()
       setOpen(false)
+      resetForm()
     } else {
-      toast.error("Failed to schedule appointment")
+      const err = await res.json().catch(() => ({}))
+      toast.error(err.error || "Failed to schedule appointment")
     }
   }
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="relative flex-1 sm:w-80">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input placeholder="Search appointments..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
@@ -86,8 +107,12 @@ export default function AppointmentsPage() {
               <SelectItem value="no_show">No Show</SelectItem>
             </SelectContent>
           </Select>
+          <Button variant="outline" size="sm" onClick={() => setSortOrder(sortOrder === "newest" ? "oldest" : "newest")} className="gap-1.5">
+            <ArrowUpDown className="h-3.5 w-3.5" />
+            {sortOrder === "newest" ? "Newest" : "Oldest"}
+          </Button>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
           <DialogTrigger asChild>
             <Button className="gap-2"><Plus className="h-4 w-4" />Book Appointment</Button>
           </DialogTrigger>
@@ -95,8 +120,8 @@ export default function AppointmentsPage() {
             <DialogHeader><DialogTitle>Book New Appointment</DialogTitle></DialogHeader>
             <form onSubmit={handleAdd} className="grid gap-4 pt-4">
               <div className="space-y-2">
-                <Label>Patient</Label>
-                <Select name="patient_id" required>
+                <Label>Patient *</Label>
+                <Select value={formPatient} onValueChange={setFormPatient}>
                   <SelectTrigger><SelectValue placeholder="Select patient" /></SelectTrigger>
                   <SelectContent>
                     {patients?.map((p: { id: number; first_name: string; last_name: string }) => (
@@ -107,8 +132,8 @@ export default function AppointmentsPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Doctor</Label>
-                  <Select name="doctor_id" required>
+                  <Label>Doctor *</Label>
+                  <Select value={formDoctor} onValueChange={setFormDoctor}>
                     <SelectTrigger><SelectValue placeholder="Select doctor" /></SelectTrigger>
                     <SelectContent>
                       {doctors?.map((d: { id: number; first_name: string; last_name: string }) => (
@@ -118,8 +143,8 @@ export default function AppointmentsPage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Department</Label>
-                  <Select name="department_id" required>
+                  <Label>Department *</Label>
+                  <Select value={formDept} onValueChange={setFormDept}>
                     <SelectTrigger><SelectValue placeholder="Select dept" /></SelectTrigger>
                     <SelectContent>
                       {departments?.map((d: { id: number; name: string }) => (
@@ -130,13 +155,13 @@ export default function AppointmentsPage() {
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2"><Label>Date</Label><Input name="appointment_date" type="date" required /></div>
-                <div className="space-y-2"><Label>Time</Label><Input name="appointment_time" type="time" required /></div>
+                <div className="space-y-2"><Label>Date *</Label><Input name="appointment_date" type="date" required /></div>
+                <div className="space-y-2"><Label>Time *</Label><Input name="appointment_time" type="time" required /></div>
               </div>
               <div className="space-y-2">
                 <Label>Type</Label>
-                <Select name="type">
-                  <SelectTrigger><SelectValue placeholder="Consultation" /></SelectTrigger>
+                <Select value={formType} onValueChange={setFormType}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="consultation">Consultation</SelectItem>
                     <SelectItem value="follow_up">Follow-up</SelectItem>
@@ -167,7 +192,7 @@ export default function AppointmentsPage() {
                 <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Patient</th>
                 <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Doctor</th>
                 <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Department</th>
-                <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Date & Time</th>
+                <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-foreground" onClick={() => setSortOrder(sortOrder === "newest" ? "oldest" : "newest")}>Date & Time ↕</th>
                 <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Type</th>
                 <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Status</th>
               </tr>
@@ -183,12 +208,12 @@ export default function AppointmentsPage() {
                   </td>
                   <td className="px-4 py-3">
                     <Badge variant="secondary" className={typeColors[a.type as string] || ""}>
-                      {(a.type as string).replace("_", " ")}
+                      {(a.type as string)?.replace("_", " ")}
                     </Badge>
                   </td>
                   <td className="px-4 py-3">
                     <Badge variant="secondary" className={statusColors[a.status as string] || ""}>
-                      {(a.status as string).replace("_", " ")}
+                      {(a.status as string)?.replace("_", " ")}
                     </Badge>
                   </td>
                 </tr>
