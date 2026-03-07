@@ -308,7 +308,7 @@ export function ResourceManagerDashboard() {
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <p className="truncate font-medium text-foreground">{member.first_name} {member.last_name}</p>
-                                        <p className="truncate text-xs text-muted-foreground">{member.role} · {member.department}</p>
+                                        <p className="truncate text-xs text-muted-foreground">{member.role} · {member.department_name || 'N/A'}</p>
                                     </div>
                                     <Badge variant="secondary" className={cn("shrink-0 text-xs", getStaffStatusColor(member.status as string))}>
                                         {(member.status as string)?.replace('_', ' ')}
@@ -342,7 +342,7 @@ export function ResourceManagerDashboard() {
                             <Card key={item.id} className="animate-fade-in group border-border/50 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md" style={{ animationDelay: `${index * 50}ms` }}>
                                 <CardContent className="p-4">
                                     <div className="flex items-center justify-between">
-                                        <p className="truncate font-medium text-foreground">{item.name}</p>
+                                        <p className="truncate font-medium text-foreground">{item.item_name}</p>
                                         <Badge variant="secondary" className={cn("shrink-0 text-xs capitalize", getInventoryStatusColor(item.status as string))}>
                                             {(item.status as string)?.replace('_', ' ')}
                                         </Badge>
@@ -350,7 +350,7 @@ export function ResourceManagerDashboard() {
                                     <p className="mt-1 text-xs text-muted-foreground">{item.category}</p>
                                     <div className="mt-2 flex items-center justify-between text-sm">
                                         <span className="font-bold text-foreground">{item.quantity} {item.unit}</span>
-                                        <span className="text-xs text-muted-foreground">min: {item.reorder_level}</span>
+                                        <span className="text-xs text-muted-foreground">min: {item.min_stock_level}</span>
                                     </div>
                                 </CardContent>
                             </Card>

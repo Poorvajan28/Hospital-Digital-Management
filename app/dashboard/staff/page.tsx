@@ -10,7 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Users, Plus, Search, Mail, Phone, UserCircle, ArrowUpDown } from "lucide-react"
 import { useState } from "react"
+import { useSession } from "next-auth/react"
 import { toast } from "sonner"
+import { canAdd, type UserRole } from "@/lib/role-permissions"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -28,6 +30,8 @@ const statusColors: Record<string, string> = {
 }
 
 export default function StaffPage() {
+  const { data: session } = useSession()
+  const userRole = (session?.user as { role?: string })?.role as UserRole | undefined
   const { data: staff, mutate } = useSWR("/api/staff", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
   const { data: departments } = useSWR("/api/departments", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
   const [search, setSearch] = useState("")
@@ -118,7 +122,7 @@ export default function StaffPage() {
             {sortBy === "name" ? "A-Z" : "Newest"}
           </Button>
         </div>
-        <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setFormRole(""); setFormDeptId(""); } }}>
+        {canAdd(userRole, "staff") && <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setFormRole(""); setFormDeptId(""); } }}>
           <DialogTrigger asChild>
             <Button className="gap-2 shadow-lg shadow-primary/20">
               <Plus className="h-4 w-4" />
@@ -184,7 +188,7 @@ export default function StaffPage() {
               <Button type="submit" className="w-full shadow-lg shadow-primary/20">Add Staff Member</Button>
             </form>
           </DialogContent>
-        </Dialog>
+        </Dialog>}
       </div>
 
       {!staff ? (

@@ -11,7 +11,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Textarea } from "@/components/ui/textarea"
 import { Plus, Search, Activity, ArrowUpDown } from "lucide-react"
 import { useState } from "react"
+import { useSession } from "next-auth/react"
 import { toast } from "sonner"
+import { canAdd, type UserRole } from "@/lib/role-permissions"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -27,6 +29,8 @@ const bloodGroupColors: Record<string, string> = {
 }
 
 export default function PatientsPage() {
+  const { data: session } = useSession()
+  const userRole = (session?.user as { role?: string })?.role as UserRole | undefined
   const { data: patients, mutate } = useSWR("/api/patients", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
   const [search, setSearch] = useState("")
   const [bloodFilter, setBloodFilter] = useState("all")
@@ -102,7 +106,7 @@ export default function PatientsPage() {
             {sortBy === "name" ? "A-Z" : "Newest"}
           </Button>
         </div>
-        <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm() }}>
+        {canAdd(userRole, "patients") && <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm() }}>
           <DialogTrigger asChild>
             <Button className="gap-2"><Plus className="h-4 w-4" />Register Patient</Button>
           </DialogTrigger>
@@ -150,7 +154,7 @@ export default function PatientsPage() {
               <Button type="submit" className="w-full">Register Patient</Button>
             </form>
           </DialogContent>
-        </Dialog>
+        </Dialog>}
       </div>
 
       <div className="flex items-center gap-2 text-sm text-muted-foreground">

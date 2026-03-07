@@ -21,7 +21,9 @@ import {
     Building,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useSession } from "next-auth/react"
 import { toast } from "sonner"
+import { canAdd, type UserRole } from "@/lib/role-permissions"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -45,6 +47,8 @@ const statusLabel = (status: string) => {
 }
 
 export default function EquipmentManagementPage() {
+    const { data: session } = useSession()
+    const userRole = (session?.user as { role?: string })?.role as UserRole | undefined
     const { data: equipment, mutate } = useSWR("/api/inventory", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
     const [searchTerm, setSearchTerm] = useState('')
     const [selectedCategory, setSelectedCategory] = useState('all')
@@ -193,7 +197,7 @@ export default function EquipmentManagementPage() {
                             <SelectItem value="PPE">PPE</SelectItem>
                         </SelectContent>
                     </Select>
-                    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setFormCategory("") }}>
+                    {canAdd(userRole, "equipment") && <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setFormCategory("") }}>
                         <DialogTrigger asChild>
                             <Button>
                                 <Plus className="mr-2 h-4 w-4" />
@@ -220,14 +224,14 @@ export default function EquipmentManagementPage() {
                                     <div className="space-y-2"><Label>Quantity</Label><Input name="quantity" type="number" defaultValue="1" /></div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2"><Label>Unit Price ($)</Label><Input name="unit_price" type="number" step="0.01" /></div>
+                                    <div className="space-y-2"><Label>Unit Price (₹)</Label><Input name="unit_price" type="number" step="0.01" /></div>
                                     <div className="space-y-2"><Label>Min Stock Level</Label><Input name="min_stock_level" type="number" defaultValue="1" /></div>
                                 </div>
                                 <div className="space-y-2"><Label>Supplier</Label><Input name="supplier" /></div>
                                 <Button type="submit" className="w-full">Add Equipment</Button>
                             </form>
                         </DialogContent>
-                    </Dialog>
+                    </Dialog>}
                 </div>
             </div>
 
@@ -296,7 +300,7 @@ export default function EquipmentManagementPage() {
                                                     {eq.unit_price && (
                                                         <div className="flex justify-between">
                                                             <span className="text-muted-foreground">Unit Price:</span>
-                                                            <span>${Number(eq.unit_price).toFixed(2)}</span>
+                                                            <span>₹{Number(eq.unit_price).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
                                                         </div>
                                                     )}
                                                     {eq.expiry_date && (

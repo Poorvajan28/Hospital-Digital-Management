@@ -10,7 +10,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Textarea } from "@/components/ui/textarea"
 import { Plus, Search, CalendarDays, ArrowUpDown } from "lucide-react"
 import { useState } from "react"
+import { useSession } from "next-auth/react"
 import { toast } from "sonner"
+import { canAdd, type UserRole } from "@/lib/role-permissions"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -29,6 +31,8 @@ const typeColors: Record<string, string> = {
 }
 
 export default function AppointmentsPage() {
+  const { data: session } = useSession()
+  const userRole = (session?.user as { role?: string })?.role as UserRole | undefined
   const { data: appointments, mutate } = useSWR("/api/appointments", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
   const { data: patients } = useSWR("/api/patients", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
   const { data: staff } = useSWR("/api/staff", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
@@ -48,7 +52,7 @@ export default function AppointmentsPage() {
 
   const filtered = appointments?.filter((a: Record<string, string>) => {
     const matchesSearch =
-      `${a.patient_first} ${a.patient_last} ${a.doctor_first} ${a.doctor_last} ${a.department_name}`.toLowerCase().includes(search.toLowerCase())
+      `${a.patient_name || ""} ${a.doctor_name || ""} ${a.department_name || ""}`.toLowerCase().includes(search.toLowerCase())
     const matchesStatus = statusFilter === "all" || a.status === statusFilter
     return matchesSearch && matchesStatus
   })?.sort((a: Record<string, string>, b: Record<string, string>) => {
@@ -112,69 +116,71 @@ export default function AppointmentsPage() {
             {sortOrder === "newest" ? "Newest" : "Oldest"}
           </Button>
         </div>
-        <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
-          <DialogTrigger asChild>
-            <Button className="gap-2"><Plus className="h-4 w-4" />Book Appointment</Button>
-          </DialogTrigger>
-          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
-            <DialogHeader><DialogTitle>Book New Appointment</DialogTitle></DialogHeader>
-            <form onSubmit={handleAdd} className="grid gap-4 pt-4">
-              <div className="space-y-2">
-                <Label>Patient *</Label>
-                <Select value={formPatient} onValueChange={setFormPatient}>
-                  <SelectTrigger><SelectValue placeholder="Select patient" /></SelectTrigger>
-                  <SelectContent>
-                    {patients?.map((p: { id: number; first_name: string; last_name: string }) => (
-                      <SelectItem key={p.id} value={String(p.id)}>{p.first_name} {p.last_name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
+        {canAdd(userRole, "appointments") && (
+          <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
+            <DialogTrigger asChild>
+              <Button className="gap-2"><Plus className="h-4 w-4" />Book Appointment</Button>
+            </DialogTrigger>
+            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+              <DialogHeader><DialogTitle>Book New Appointment</DialogTitle></DialogHeader>
+              <form onSubmit={handleAdd} className="grid gap-4 pt-4">
                 <div className="space-y-2">
-                  <Label>Doctor *</Label>
-                  <Select value={formDoctor} onValueChange={setFormDoctor}>
-                    <SelectTrigger><SelectValue placeholder="Select doctor" /></SelectTrigger>
+                  <Label>Patient *</Label>
+                  <Select value={formPatient} onValueChange={setFormPatient}>
+                    <SelectTrigger><SelectValue placeholder="Select patient" /></SelectTrigger>
                     <SelectContent>
-                      {doctors?.map((d: { id: number; first_name: string; last_name: string }) => (
-                        <SelectItem key={d.id} value={String(d.id)}>Dr. {d.first_name} {d.last_name}</SelectItem>
+                      {patients?.map((p: { id: number; first_name: string; last_name: string }) => (
+                        <SelectItem key={p.id} value={String(p.id)}>{p.first_name} {p.last_name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Doctor *</Label>
+                    <Select value={formDoctor} onValueChange={setFormDoctor}>
+                      <SelectTrigger><SelectValue placeholder="Select doctor" /></SelectTrigger>
+                      <SelectContent>
+                        {doctors?.map((d: { id: number; first_name: string; last_name: string }) => (
+                          <SelectItem key={d.id} value={String(d.id)}>Dr. {d.first_name} {d.last_name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Department *</Label>
+                    <Select value={formDept} onValueChange={setFormDept}>
+                      <SelectTrigger><SelectValue placeholder="Select dept" /></SelectTrigger>
+                      <SelectContent>
+                        {departments?.map((d: { id: number; name: string }) => (
+                          <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label>Date *</Label><Input name="appointment_date" type="date" required /></div>
+                  <div className="space-y-2"><Label>Time *</Label><Input name="appointment_time" type="time" required /></div>
+                </div>
                 <div className="space-y-2">
-                  <Label>Department *</Label>
-                  <Select value={formDept} onValueChange={setFormDept}>
-                    <SelectTrigger><SelectValue placeholder="Select dept" /></SelectTrigger>
+                  <Label>Type</Label>
+                  <Select value={formType} onValueChange={setFormType}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {departments?.map((d: { id: number; name: string }) => (
-                        <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
-                      ))}
+                      <SelectItem value="consultation">Consultation</SelectItem>
+                      <SelectItem value="follow_up">Follow-up</SelectItem>
+                      <SelectItem value="emergency">Emergency</SelectItem>
+                      <SelectItem value="surgery">Surgery</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2"><Label>Date *</Label><Input name="appointment_date" type="date" required /></div>
-                <div className="space-y-2"><Label>Time *</Label><Input name="appointment_time" type="time" required /></div>
-              </div>
-              <div className="space-y-2">
-                <Label>Type</Label>
-                <Select value={formType} onValueChange={setFormType}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="consultation">Consultation</SelectItem>
-                    <SelectItem value="follow_up">Follow-up</SelectItem>
-                    <SelectItem value="emergency">Emergency</SelectItem>
-                    <SelectItem value="surgery">Surgery</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2"><Label>Notes</Label><Textarea name="notes" rows={2} /></div>
-              <Button type="submit" className="w-full">Book Appointment</Button>
-            </form>
-          </DialogContent>
-        </Dialog>
+                <div className="space-y-2"><Label>Notes</Label><Textarea name="notes" rows={2} /></div>
+                <Button type="submit" className="w-full">Book Appointment</Button>
+              </form>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -200,11 +206,11 @@ export default function AppointmentsPage() {
             <tbody>
               {filtered?.map((a: Record<string, string | number>) => (
                 <tr key={a.id} className="border-b border-border/50 transition-colors last:border-0 hover:bg-muted/30">
-                  <td className="px-4 py-3 font-medium text-foreground">{a.patient_first} {a.patient_last}</td>
-                  <td className="px-4 py-3 text-foreground">Dr. {a.doctor_first} {a.doctor_last}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{a.department_name}</td>
+                  <td className="px-4 py-3 font-medium text-foreground">{a.patient_name || "—"}</td>
+                  <td className="px-4 py-3 text-foreground">{a.doctor_name ? `Dr. ${a.doctor_name}` : "—"}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{a.department_name || "—"}</td>
                   <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
-                    {new Date(a.appointment_date as string).toLocaleDateString()} {(a.appointment_time as string)?.slice(0, 5)}
+                    {a.appointment_date ? new Date(a.appointment_date as string).toLocaleDateString("en-IN") : "—"} {(a.appointment_time as string)?.slice(0, 5)}
                   </td>
                   <td className="px-4 py-3">
                     <Badge variant="secondary" className={typeColors[a.type as string] || ""}>

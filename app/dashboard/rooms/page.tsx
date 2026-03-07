@@ -11,7 +11,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { BedDouble, DoorOpen, Plus, Search } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
 import { useState } from "react"
+import { useSession } from "next-auth/react"
 import { toast } from "sonner"
+import { canAdd, type UserRole } from "@/lib/role-permissions"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -30,6 +32,8 @@ const typeColors: Record<string, string> = {
 }
 
 export default function RoomsPage() {
+  const { data: session } = useSession()
+  const userRole = (session?.user as { role?: string })?.role as UserRole | undefined
   const { data: rooms, mutate } = useSWR("/api/rooms", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
@@ -150,7 +154,7 @@ export default function RoomsPage() {
             </SelectContent>
           </Select>
         </div>
-        <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setFormType("General") }}>
+        {canAdd(userRole, "rooms") && <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setFormType("General") }}>
           <DialogTrigger asChild>
             <Button className="gap-2 shadow-lg shadow-primary/20"><Plus className="h-4 w-4" />Add Room</Button>
           </DialogTrigger>
@@ -176,12 +180,12 @@ export default function RoomsPage() {
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2"><Label>Floor</Label><Input name="floor" type="number" defaultValue="1" className="border-border/50" /></div>
                 <div className="space-y-2"><Label>Total Beds</Label><Input name="beds_total" type="number" defaultValue="1" className="border-border/50" /></div>
-                <div className="space-y-2"><Label>Daily Rate ($)</Label><Input name="daily_rate" type="number" step="0.01" className="border-border/50" /></div>
+                <div className="space-y-2"><Label>Daily Rate (₹)</Label><Input name="daily_rate" type="number" step="0.01" className="border-border/50" /></div>
               </div>
               <Button type="submit" className="w-full shadow-lg shadow-primary/20">Add Room</Button>
             </form>
           </DialogContent>
-        </Dialog>
+        </Dialog>}
       </div>
 
       {/* Room Count */}
@@ -233,7 +237,7 @@ export default function RoomsPage() {
                     <Badge variant="secondary" className={`font-semibold ${statusColors[room.status as string] || ""}`}>
                       {room.status}
                     </Badge>
-                    <span className="text-sm font-bold text-foreground">${Number(room.daily_rate).toFixed(0)}<span className="text-xs font-normal text-muted-foreground">/day</span></span>
+                    <span className="text-sm font-bold text-foreground">₹{Number(room.daily_rate).toLocaleString("en-IN")}<span className="text-xs font-normal text-muted-foreground">/day</span></span>
                   </div>
                 </CardContent>
               </Card>

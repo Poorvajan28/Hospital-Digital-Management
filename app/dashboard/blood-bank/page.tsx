@@ -12,7 +12,9 @@ import { Droplets, Plus, Search, Heart } from "lucide-react"
 import { Bar, BarChart, XAxis, YAxis, Cell } from "recharts"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { useState } from "react"
+import { useSession } from "next-auth/react"
 import { toast } from "sonner"
+import { canAdd, type UserRole } from "@/lib/role-permissions"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -25,6 +27,8 @@ const statusColors: Record<string, string> = {
 const chartConfig = { units: { label: "Units", color: "var(--color-chart-1)" } }
 
 export default function BloodBankPage() {
+  const { data: session } = useSession()
+  const userRole = (session?.user as { role?: string })?.role as UserRole | undefined
   const { data: donors, mutate } = useSWR("/api/blood-donors", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
   const { data: stock } = useSWR("/api/blood-stock", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
   const [search, setSearch] = useState("")
@@ -168,7 +172,7 @@ export default function BloodBankPage() {
             </SelectContent>
           </Select>
         </div>
-        <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm() }}>
+        {canAdd(userRole, "blood_bank") && <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm() }}>
           <DialogTrigger asChild>
             <Button className="gap-2 shadow-lg shadow-primary/20"><Plus className="h-4 w-4" />Register Donor</Button>
           </DialogTrigger>
@@ -211,7 +215,7 @@ export default function BloodBankPage() {
               <Button type="submit" className="w-full shadow-lg shadow-primary/20">Register Donor</Button>
             </form>
           </DialogContent>
-        </Dialog>
+        </Dialog>}
       </div>
 
       {!donors ? (

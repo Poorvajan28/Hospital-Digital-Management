@@ -9,11 +9,15 @@ import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Building2, Users, Phone, Plus, Search } from "lucide-react"
 import { useState } from "react"
+import { useSession } from "next-auth/react"
 import { toast } from "sonner"
+import { canAdd, type UserRole } from "@/lib/role-permissions"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 export default function DepartmentsPage() {
+  const { data: session } = useSession()
+  const userRole = (session?.user as { role?: string })?.role as UserRole | undefined
   const { data: departments, mutate } = useSWR("/api/departments", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
   const [search, setSearch] = useState("")
   const [open, setOpen] = useState(false)
@@ -53,7 +57,7 @@ export default function DepartmentsPage() {
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input placeholder="Search departments..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10 border-border/50" />
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
+        {canAdd(userRole, "departments") && <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button className="gap-2 shadow-lg shadow-primary/20"><Plus className="h-4 w-4" />Add Department</Button>
           </DialogTrigger>
@@ -69,7 +73,7 @@ export default function DepartmentsPage() {
               <Button type="submit" className="w-full shadow-lg shadow-primary/20">Add Department</Button>
             </form>
           </DialogContent>
-        </Dialog>
+        </Dialog>}
       </div>
 
       <div className="flex items-center gap-2 text-sm text-muted-foreground">

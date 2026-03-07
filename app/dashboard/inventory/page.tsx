@@ -10,7 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Package, Plus, Search, AlertTriangle, CheckCircle, XCircle, ArrowUpDown } from "lucide-react"
 import { useState } from "react"
+import { useSession } from "next-auth/react"
 import { toast } from "sonner"
+import { canAdd, type UserRole } from "@/lib/role-permissions"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -28,6 +30,8 @@ const categoryColors: Record<string, string> = {
 }
 
 export default function InventoryPage() {
+  const { data: session } = useSession()
+  const userRole = (session?.user as { role?: string })?.role as UserRole | undefined
   const { data: inventory, mutate } = useSWR("/api/inventory", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
   const [search, setSearch] = useState("")
   const [categoryFilter, setCategoryFilter] = useState("all")
@@ -122,7 +126,7 @@ export default function InventoryPage() {
               <Package className="h-4 w-4 text-[#059669]" />
             </div>
           </CardHeader>
-          <CardContent><p className="text-3xl font-extrabold tracking-tight text-foreground">${totalValue.toLocaleString()}</p></CardContent>
+          <CardContent><p className="text-3xl font-extrabold tracking-tight text-foreground">₹{totalValue.toLocaleString("en-IN")}</p></CardContent>
         </Card>
       </div>
 
@@ -157,7 +161,7 @@ export default function InventoryPage() {
             {sortBy === "name" ? "Name" : sortBy === "qty" ? "Qty" : "Price"}
           </Button>
         </div>
-        <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setFormCategory("") }}>
+        {canAdd(userRole, "inventory") && <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setFormCategory("") }}>
           <DialogTrigger asChild>
             <Button className="gap-2"><Plus className="h-4 w-4" />Add Item</Button>
           </DialogTrigger>
@@ -183,14 +187,14 @@ export default function InventoryPage() {
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2"><Label>Quantity *</Label><Input name="quantity" type="number" required /></div>
                 <div className="space-y-2"><Label>Min Stock</Label><Input name="min_stock_level" type="number" defaultValue="10" /></div>
-                <div className="space-y-2"><Label>Unit Price</Label><Input name="unit_price" type="number" step="0.01" /></div>
+                <div className="space-y-2"><Label>Unit Price (₹)</Label><Input name="unit_price" type="number" step="0.01" /></div>
               </div>
               <div className="space-y-2"><Label>Supplier</Label><Input name="supplier" /></div>
               <div className="space-y-2"><Label>Expiry Date</Label><Input name="expiry_date" type="date" /></div>
               <Button type="submit" className="w-full">Add Item</Button>
             </form>
           </DialogContent>
-        </Dialog>
+        </Dialog>}
       </div>
 
       {/* Table */}
@@ -223,7 +227,7 @@ export default function InventoryPage() {
                     <td className="px-4 py-3 font-mono text-foreground">{item.quantity} {item.unit}</td>
                     <td className="px-4 py-3 font-mono text-muted-foreground">{item.min_stock_level}</td>
                     <td className="px-4 py-3 font-mono text-muted-foreground">
-                      {item.unit_price ? `$${Number(item.unit_price).toFixed(2)}` : "-"}
+                      {item.unit_price ? `₹${Number(item.unit_price).toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : "—"}
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{item.supplier || "-"}</td>
                     <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
