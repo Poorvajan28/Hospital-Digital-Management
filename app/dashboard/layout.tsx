@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard-sidebar"
+import { PageTransition } from "@/components/page-transition"
 import {
   LayoutDashboard,
   Users,
@@ -24,6 +25,8 @@ const pageConfig: Record<string, { title: string; description: string; icon: Rea
   "/dashboard/inventory": { title: "Inventory & Stock", description: "Track medical supplies and equipment", icon: Package },
   "/dashboard/departments": { title: "Departments", description: "Hospital department directory", icon: Building2 },
   "/dashboard/rooms": { title: "Rooms & Beds", description: "Room availability and occupancy", icon: BedDouble },
+  "/dashboard/beds": { title: "Bed Management", description: "Track and manage hospital beds", icon: BedDouble },
+  "/dashboard/equipment": { title: "Equipment", description: "Medical equipment tracking", icon: Package },
 }
 
 export default function DashboardLayout({
@@ -54,8 +57,11 @@ export default function DashboardLayout({
             </div>
           </div>
         </header>
-        <div className="p-6">{children}</div>
+        <div className="p-6">
+          <PageTransition>{children}</PageTransition>
+        </div>
       </main>
     </div>
   )
 }
+

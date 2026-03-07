@@ -1,500 +1,363 @@
 "use client"
 
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import useSWR from "swr"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
+import Link from "next/link"
 import {
     BedDouble,
-    Stethoscope,
     Droplets,
     Users,
     AlertTriangle,
     CheckCircle2,
     Clock,
     ArrowRight,
-    MapPin,
     Activity,
-    Calendar,
+    Package,
     Wrench,
-    Thermometer
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-// Types for Hospital Resources
-interface BedResource {
-    id: string
-    ward: string
-    bedNumber: string
-    type: 'general' | 'icu' | 'emergency' | 'private'
-    status: 'available' | 'occupied' | 'maintenance' | 'reserved'
-    patientName?: string
-    admissionDate?: string
-    expectedDischarge?: string
-}
+const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
-interface EquipmentResource {
-    id: string
-    name: string
-    type: string
-    department: string
-    status: 'available' | 'in_use' | 'maintenance' | 'out_of_order'
-    lastMaintenance?: string
-    nextMaintenance?: string
-}
-
-interface BloodResource {
-    group: string
-    units: number
-    minThreshold: number
-    status: 'adequate' | 'low' | 'critical'
-}
-
-interface StaffResource {
-    id: string
-    name: string
-    role: string
-    department: string
-    status: 'on_duty' | 'off_duty' | 'on_leave' | 'emergency_on_call'
-    currentAssignment?: string
-}
-
-// Mock data for demonstration
-const bedResources: BedResource[] = [
-    { id: '1', ward: 'General Ward A', bedNumber: 'A-01', type: 'general', status: 'occupied', patientName: 'Rajesh Kumar', admissionDate: '02/03/2026', expectedDischarge: '05/03/2026' },
-    { id: '2', ward: 'General Ward A', bedNumber: 'A-02', type: 'general', status: 'available' },
-    { id: '3', ward: 'General Ward A', bedNumber: 'A-03', type: 'general', status: 'maintenance' },
-    { id: '4', ward: 'ICU', bedNumber: 'ICU-01', type: 'icu', status: 'occupied', patientName: 'Lakshmi N', admissionDate: '01/03/2026' },
-    { id: '5', ward: 'ICU', bedNumber: 'ICU-02', type: 'icu', status: 'available' },
-    { id: '6', ward: 'Emergency', bedNumber: 'E-01', type: 'emergency', status: 'occupied', patientName: 'Suresh M', admissionDate: '02/03/2026' },
-    { id: '7', ward: 'Emergency', bedNumber: 'E-02', type: 'emergency', status: 'available' },
-    { id: '8', ward: 'Private Room', bedNumber: 'P-101', type: 'private', status: 'reserved' },
-]
-
-const equipmentResources: EquipmentResource[] = [
-    { id: '1', name: 'Ventilator', type: 'Life Support', department: 'ICU', status: 'in_use', lastMaintenance: '15/02/2026', nextMaintenance: '15/03/2026' },
-    { id: '2', name: 'X-Ray Machine', type: 'Diagnostic', department: 'Radiology', status: 'available', lastMaintenance: '01/02/2026', nextMaintenance: '01/05/2026' },
-    { id: '3', name: 'MRI Scanner', type: 'Diagnostic', department: 'Radiology', status: 'maintenance', lastMaintenance: '01/01/2026' },
-    { id: '4', name: 'Defibrillator', type: 'Emergency', department: 'Emergency', status: 'available', lastMaintenance: '10/02/2026', nextMaintenance: '10/03/2026' },
-    { id: '5', name: 'Dialysis Machine', type: 'Therapeutic', department: 'Nephrology', status: 'in_use', lastMaintenance: '20/02/2026', nextMaintenance: '20/03/2026' },
-]
-
-const bloodResources: BloodResource[] = [
-    { group: 'A+', units: 25, minThreshold: 15, status: 'adequate' },
-    { group: 'A-', units: 8, minThreshold: 10, status: 'low' },
-    { group: 'B+', units: 32, minThreshold: 15, status: 'adequate' },
-    { group: 'B-', units: 5, minThreshold: 8, status: 'critical' },
-    { group: 'AB+', units: 12, minThreshold: 10, status: 'adequate' },
-    { group: 'AB-', units: 3, minThreshold: 5, status: 'critical' },
-    { group: 'O+', units: 45, minThreshold: 20, status: 'adequate' },
-    { group: 'O-', units: 10, minThreshold: 12, status: 'low' },
-]
-
-const staffResources: StaffResource[] = [
-    { id: '1', name: 'Dr. Priya Sharma', role: 'Cardiologist', department: 'Cardiology', status: 'on_duty', currentAssignment: 'OPD-1' },
-    { id: '2', name: 'Dr. Karthik R', role: 'General Surgeon', department: 'Surgery', status: 'on_duty', currentAssignment: 'OT-2' },
-    { id: '3', name: 'Nurse Anitha', role: 'Staff Nurse', department: 'ICU', status: 'on_duty', currentAssignment: 'ICU-01' },
-    { id: '4', name: 'Dr. Venkatesh', role: 'Orthopedic', department: 'Orthopedics', status: 'emergency_on_call' },
-    { id: '5', name: 'Nurse Meena', role: 'Staff Nurse', department: 'General Ward', status: 'off_duty' },
-    { id: '6', name: 'Dr. Lakshmi', role: 'Pediatrician', department: 'Pediatrics', status: 'on_leave' },
-]
-
-// Status helpers
-const getBedStatusColor = (status: BedResource['status']) => {
-    const colors = {
-        available: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-        occupied: 'bg-rose-100 text-rose-800 border-rose-200',
-        maintenance: 'bg-amber-100 text-amber-800 border-amber-200',
-        reserved: 'bg-blue-100 text-blue-800 border-blue-200',
+// Status color helpers
+function getRoomStatusColor(status: string) {
+    switch (status) {
+        case 'available': return 'bg-[#059669]/10 text-[#059669]'
+        case 'occupied': return 'bg-[#2563eb]/10 text-[#2563eb]'
+        case 'maintenance': return 'bg-[#d97706]/10 text-[#d97706]'
+        default: return 'bg-[#6b7280]/10 text-[#6b7280]'
     }
-    return colors[status]
 }
 
-const getEquipmentStatusColor = (status: EquipmentResource['status']) => {
-    const colors = {
-        available: 'bg-emerald-100 text-emerald-800',
-        in_use: 'bg-blue-100 text-blue-800',
-        maintenance: 'bg-amber-100 text-amber-800',
-        out_of_order: 'bg-rose-100 text-rose-800',
+function getBloodStatusColor(units: number, minThreshold: number) {
+    if (units <= minThreshold * 0.5) return 'bg-[#dc2626]/10 text-[#dc2626]'
+    if (units <= minThreshold) return 'bg-[#d97706]/10 text-[#d97706]'
+    return 'bg-[#059669]/10 text-[#059669]'
+}
+
+function getBloodStatusLabel(units: number, minThreshold: number) {
+    if (units <= minThreshold * 0.5) return 'critical'
+    if (units <= minThreshold) return 'low'
+    return 'adequate'
+}
+
+function getStaffStatusColor(status: string) {
+    switch (status) {
+        case 'active': return 'bg-[#059669]/10 text-[#059669]'
+        case 'on_leave': return 'bg-[#d97706]/10 text-[#d97706]'
+        case 'inactive': return 'bg-[#dc2626]/10 text-[#dc2626]'
+        default: return 'bg-[#6b7280]/10 text-[#6b7280]'
     }
-    return colors[status]
 }
 
-const getBloodStatusColor = (status: BloodResource['status']) => {
-    const colors = {
-        adequate: 'bg-emerald-100 text-emerald-800',
-        low: 'bg-amber-100 text-amber-800',
-        critical: 'bg-rose-100 text-rose-800',
+function getInventoryStatusColor(status: string) {
+    switch (status) {
+        case 'in_stock': return 'bg-[#059669]/10 text-[#059669]'
+        case 'low_stock': return 'bg-[#d97706]/10 text-[#d97706]'
+        case 'out_of_stock': return 'bg-[#dc2626]/10 text-[#dc2626]'
+        default: return 'bg-[#6b7280]/10 text-[#6b7280]'
     }
-    return colors[status]
-}
-
-const getStaffStatusColor = (status: StaffResource['status']) => {
-    const colors = {
-        on_duty: 'bg-emerald-100 text-emerald-800',
-        off_duty: 'bg-slate-100 text-slate-800',
-        on_leave: 'bg-amber-100 text-amber-800',
-        emergency_on_call: 'bg-rose-100 text-rose-800',
-    }
-    return colors[status]
-}
-
-// Summary stats
-const bedStats = {
-    total: bedResources.length,
-    available: bedResources.filter(b => b.status === 'available').length,
-    occupied: bedResources.filter(b => b.status === 'occupied').length,
-    maintenance: bedResources.filter(b => b.status === 'maintenance').length,
-}
-
-const equipmentStats = {
-    total: equipmentResources.length,
-    available: equipmentResources.filter(e => e.status === 'available').length,
-    inUse: equipmentResources.filter(e => e.status === 'in_use').length,
-    maintenance: equipmentResources.filter(e => e.status === 'maintenance').length,
-}
-
-const bloodStats = {
-    critical: bloodResources.filter(b => b.status === 'critical').length,
-    low: bloodResources.filter(b => b.status === 'low').length,
-}
-
-const staffStats = {
-    onDuty: staffResources.filter(s => s.status === 'on_duty').length,
-    onCall: staffResources.filter(s => s.status === 'emergency_on_call').length,
 }
 
 export function ResourceManagerDashboard() {
+    const { data: rooms } = useSWR("/api/rooms", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
+    const { data: bloodStock } = useSWR("/api/blood-stock", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
+    const { data: staff } = useSWR("/api/staff", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
+    const { data: inventory } = useSWR("/api/inventory", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
+
+    // Compute stats from real data
+    const totalBeds = rooms?.reduce((sum: number, r: { beds_total: number }) => sum + Number(r.beds_total), 0) || 0
+    const occupiedBeds = rooms?.reduce((sum: number, r: { beds_occupied: number }) => sum + Number(r.beds_occupied), 0) || 0
+    const availableBeds = totalBeds - occupiedBeds
+    const bedOccupancyRate = totalBeds > 0 ? Math.round((occupiedBeds / totalBeds) * 100) : 0
+
+    const totalEquipment = inventory?.length || 0
+    const inStockEquipment = inventory?.filter((i: { status: string }) => i.status === 'in_stock').length || 0
+    const lowStockEquipment = inventory?.filter((i: { status: string }) => i.status === 'low_stock').length || 0
+
+    const criticalBlood = bloodStock?.filter((b: { units_available: number; min_threshold: number }) =>
+        Number(b.units_available) <= Number(b.min_threshold) * 0.5
+    ).length || 0
+    const totalBloodUnits = bloodStock?.reduce((sum: number, b: { units_available: number }) => sum + Number(b.units_available), 0) || 0
+
+    const activeStaff = staff?.filter((s: { status: string }) => s.status === 'active').length || 0
+    const onCallStaff = staff?.filter((s: { status: string }) => s.status === 'on_leave').length || 0
+
+    const isLoading = !rooms || !bloodStock || !staff || !inventory
+
     return (
-        <div className="space-y-6 p-6">
-            {/* Page Header */}
-            <div className="flex flex-col gap-2">
-                <h1 className="text-2xl font-bold tracking-tight">Hospital Resource Manager</h1>
-                <p className="text-muted-foreground">
-                    Real-time monitoring of beds, equipment, blood bank, and staff availability
-                </p>
+        <div className="space-y-8 stagger-children">
+            {/* Summary Cards */}
+            <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+                <Card className="group border-border/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-primary/5">
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-sm font-medium text-muted-foreground">Bed Occupancy</CardTitle>
+                        <div className="rounded-lg bg-primary/10 p-2 transition-transform duration-300 group-hover:scale-110">
+                            <BedDouble className="h-4 w-4 text-primary" />
+                        </div>
+                    </CardHeader>
+                    <CardContent>
+                        {isLoading ? (
+                            <div className="h-10 animate-pulse rounded bg-muted" />
+                        ) : (
+                            <>
+                                <p className="text-3xl font-extrabold tracking-tight text-foreground">{bedOccupancyRate}%</p>
+                                <Progress value={bedOccupancyRate} className="mt-3 h-2" />
+                                <p className="mt-2 text-xs text-muted-foreground">
+                                    {availableBeds} Available · {occupiedBeds} Occupied
+                                </p>
+                            </>
+                        )}
+                    </CardContent>
+                </Card>
+
+                <Card className="group border-border/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-primary/5">
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-sm font-medium text-muted-foreground">Equipment Status</CardTitle>
+                        <div className="rounded-lg bg-[#7c3aed]/10 p-2 transition-transform duration-300 group-hover:scale-110">
+                            <Package className="h-4 w-4 text-[#7c3aed]" />
+                        </div>
+                    </CardHeader>
+                    <CardContent>
+                        {isLoading ? (
+                            <div className="h-10 animate-pulse rounded bg-muted" />
+                        ) : (
+                            <>
+                                <p className="text-3xl font-extrabold tracking-tight text-foreground">{inStockEquipment}</p>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                    Available out of {totalEquipment} equipment
+                                </p>
+                                {lowStockEquipment > 0 && (
+                                    <p className="mt-1 text-xs font-medium text-[#d97706]">{lowStockEquipment} low stock</p>
+                                )}
+                            </>
+                        )}
+                    </CardContent>
+                </Card>
+
+                <Card className="group border-border/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-primary/5">
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-sm font-medium text-muted-foreground">Blood Bank</CardTitle>
+                        <div className="rounded-lg bg-[#dc2626]/10 p-2 transition-transform duration-300 group-hover:scale-110">
+                            <Droplets className="h-4 w-4 text-[#dc2626]" />
+                        </div>
+                    </CardHeader>
+                    <CardContent>
+                        {isLoading ? (
+                            <div className="h-10 animate-pulse rounded bg-muted" />
+                        ) : (
+                            <>
+                                <p className="text-3xl font-extrabold tracking-tight text-foreground">{totalBloodUnits}</p>
+                                <p className="mt-1 text-xs text-muted-foreground">Total units available</p>
+                                {criticalBlood > 0 && (
+                                    <p className="mt-1 text-xs font-medium text-[#dc2626]">{criticalBlood} critical groups</p>
+                                )}
+                            </>
+                        )}
+                    </CardContent>
+                </Card>
+
+                <Card className="group border-border/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-primary/5">
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-sm font-medium text-muted-foreground">Staff on Duty</CardTitle>
+                        <div className="rounded-lg bg-[#059669]/10 p-2 transition-transform duration-300 group-hover:scale-110">
+                            <Users className="h-4 w-4 text-[#059669]" />
+                        </div>
+                    </CardHeader>
+                    <CardContent>
+                        {isLoading ? (
+                            <div className="h-10 animate-pulse rounded bg-muted" />
+                        ) : (
+                            <>
+                                <p className="text-3xl font-extrabold tracking-tight text-foreground">{activeStaff}</p>
+                                <p className="mt-1 text-xs text-muted-foreground">{onCallStaff} on leave</p>
+                            </>
+                        )}
+                    </CardContent>
+                </Card>
             </div>
 
             {/* Critical Alerts */}
-            {(bloodStats.critical > 0 || bedStats.available < 3) && (
-                <div className="space-y-2">
-                    {bloodStats.critical > 0 && (
-                        <div className="flex items-center gap-3 rounded-lg border border-rose-200 bg-rose-50 p-4">
-                            <AlertTriangle className="h-5 w-5 text-rose-600" />
-                            <div>
-                                <p className="font-semibold text-rose-900">Critical Blood Stock Alert</p>
-                                <p className="text-sm text-rose-700">
-                                    {bloodStats.critical} blood groups at critical level. Immediate donor recruitment required.
-                                </p>
-                            </div>
+            {!isLoading && criticalBlood > 0 && (
+                <Card className="border-[#dc2626]/20 bg-[#dc2626]/5">
+                    <CardContent className="flex items-center gap-3 p-4">
+                        <AlertTriangle className="h-5 w-5 text-[#dc2626]" />
+                        <div>
+                            <p className="font-semibold text-[#dc2626]">Critical Blood Stock Alert</p>
+                            <p className="text-sm text-[#dc2626]/80">{criticalBlood} blood groups at critical level. Immediate donor recruitment required.</p>
                         </div>
-                    )}
-                    {bedStats.available < 3 && (
-                        <div className="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
-                            <AlertTriangle className="h-5 w-5 text-amber-600" />
-                            <div>
-                                <p className="font-semibold text-amber-900">Low Bed Availability</p>
-                                <p className="text-sm text-amber-700">
-                                    Only {bedStats.available} beds available. Consider patient discharge planning.
-                                </p>
-                            </div>
-                        </div>
-                    )}
-                </div>
+                    </CardContent>
+                </Card>
             )}
 
-            {/* Resource Summary Cards */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                {/* Beds Summary */}
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Bed Occupancy</CardTitle>
-                        <BedDouble className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{Math.round((bedStats.occupied / bedStats.total) * 100)}%</div>
-                        <div className="mt-2 space-y-1">
-                            <Progress value={(bedStats.occupied / bedStats.total) * 100} className="h-2" />
-                            <div className="flex justify-between text-xs text-muted-foreground">
-                                <span>{bedStats.available} Available</span>
-                                <span>{bedStats.occupied} Occupied</span>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* Equipment Summary */}
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Equipment Status</CardTitle>
-                        <Stethoscope className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{equipmentStats.available}</div>
-                        <p className="text-xs text-muted-foreground">
-                            Available out of {equipmentStats.total} equipment
-                        </p>
-                        {equipmentStats.maintenance > 0 && (
-                            <p className="mt-1 text-xs text-amber-600">
-                                {equipmentStats.maintenance} under maintenance
-                            </p>
-                        )}
-                    </CardContent>
-                </Card>
-
-                {/* Blood Bank Summary */}
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Blood Bank</CardTitle>
-                        <Droplets className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{bloodResources.reduce((acc, b) => acc + b.units, 0)}</div>
-                        <p className="text-xs text-muted-foreground">Total units available</p>
-                        {bloodStats.critical > 0 && (
-                            <p className="mt-1 text-xs text-rose-600">{bloodStats.critical} critical groups</p>
-                        )}
-                    </CardContent>
-                </Card>
-
-                {/* Staff Summary */}
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Staff on Duty</CardTitle>
-                        <Users className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{staffStats.onDuty}</div>
-                        <p className="text-xs text-muted-foreground">
-                            {staffStats.onCall} on emergency call
-                        </p>
-                    </CardContent>
-                </Card>
-            </div>
-
-            {/* Detailed Resource Views */}
-            <div className="grid gap-6 lg:grid-cols-2">
-                {/* Bed Management */}
-                <Card className="col-span-2 lg:col-span-1">
-                    <CardHeader>
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <CardTitle className="flex items-center gap-2">
-                                    <BedDouble className="h-5 w-5" />
-                                    Bed Allocation
-                                </CardTitle>
-                                <CardDescription>Real-time bed occupancy status</CardDescription>
-                            </div>
-                            <Button variant="outline" size="sm">
-                                View All <ArrowRight className="ml-2 h-4 w-4" />
-                            </Button>
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="space-y-3">
-                            {bedResources.slice(0, 5).map((bed) => (
-                                <div
-                                    key={bed.id}
-                                    className="flex items-center justify-between rounded-lg border p-3"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <div className={cn(
-                                            "flex h-10 w-10 items-center justify-center rounded-lg font-semibold",
-                                            bed.status === 'available' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-700'
-                                        )}>
-                                            {bed.bedNumber}
-                                        </div>
-                                        <div>
-                                            <p className="font-medium">{bed.ward}</p>
-                                            <p className="text-sm text-muted-foreground">
-                                                {bed.type.charAt(0).toUpperCase() + bed.type.slice(1)} Bed
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <div className="text-right">
-                                        <Badge variant="outline" className={getBedStatusColor(bed.status)}>
-                                            {bed.status.replace('_', ' ')}
-                                        </Badge>
-                                        {bed.patientName && (
-                                            <p className="mt-1 text-xs text-muted-foreground">{bed.patientName}</p>
-                                        )}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* Equipment Status */}
-                <Card className="col-span-2 lg:col-span-1">
-                    <CardHeader>
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <CardTitle className="flex items-center gap-2">
-                                    <Activity className="h-5 w-5" />
-                                    Medical Equipment
-                                </CardTitle>
-                                <CardDescription>Equipment availability and maintenance</CardDescription>
-                            </div>
-                            <Button variant="outline" size="sm">
-                                View All <ArrowRight className="ml-2 h-4 w-4" />
-                            </Button>
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="space-y-3">
-                            {equipmentResources.map((equipment) => (
-                                <div
-                                    key={equipment.id}
-                                    className="flex items-center justify-between rounded-lg border p-3"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100">
-                                            <Wrench className="h-5 w-5 text-slate-600" />
-                                        </div>
-                                        <div>
-                                            <p className="font-medium">{equipment.name}</p>
-                                            <p className="text-sm text-muted-foreground">{equipment.department}</p>
-                                        </div>
-                                    </div>
-                                    <div className="text-right">
-                                        <Badge className={getEquipmentStatusColor(equipment.status)}>
-                                            {equipment.status.replace('_', ' ')}
-                                        </Badge>
-                                        {equipment.nextMaintenance && (
-                                            <p className="mt-1 text-xs text-muted-foreground">
-                                                Next: {equipment.nextMaintenance}
-                                            </p>
-                                        )}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* Blood Bank */}
-                <Card className="col-span-2 lg:col-span-1">
-                    <CardHeader>
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <CardTitle className="flex items-center gap-2">
-                                    <Droplets className="h-5 w-5" />
-                                    Blood Bank Inventory
-                                </CardTitle>
-                                <CardDescription>Current blood stock levels</CardDescription>
-                            </div>
-                            <Button variant="outline" size="sm">
-                                Manage <ArrowRight className="ml-2 h-4 w-4" />
-                            </Button>
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="grid grid-cols-4 gap-2">
-                            {bloodResources.map((blood) => (
-                                <div
-                                    key={blood.group}
-                                    className={cn(
-                                        "rounded-lg border p-3 text-center",
-                                        blood.status === 'critical' && "border-rose-200 bg-rose-50",
-                                        blood.status === 'low' && "border-amber-200 bg-amber-50"
-                                    )}
-                                >
-                                    <p className="text-lg font-bold">{blood.group}</p>
-                                    <p className={cn(
-                                        "text-2xl font-bold",
-                                        blood.status === 'adequate' ? 'text-emerald-600' :
-                                            blood.status === 'low' ? 'text-amber-600' : 'text-rose-600'
-                                    )}>
-                                        {blood.units}
-                                    </p>
-                                    <p className="text-xs text-muted-foreground">units</p>
-                                </div>
-                            ))}
-                        </div>
-                        <div className="mt-4 flex items-center gap-4 text-sm">
-                            <div className="flex items-center gap-2">
-                                <div className="h-3 w-3 rounded-full bg-emerald-500" />
-                                <span>Adequate</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <div className="h-3 w-3 rounded-full bg-amber-500" />
-                                <span>Low</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <div className="h-3 w-3 rounded-full bg-rose-500" />
-                                <span>Critical</span>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* Staff on Duty */}
-                <Card className="col-span-2 lg:col-span-1">
-                    <CardHeader>
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <CardTitle className="flex items-center gap-2">
-                                    <Users className="h-5 w-5" />
-                                    Staff Availability
-                                </CardTitle>
-                                <CardDescription>Current staff status and assignments</CardDescription>
-                            </div>
-                            <Button variant="outline" size="sm">
-                                Schedule <ArrowRight className="ml-2 h-4 w-4" />
-                            </Button>
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="space-y-3">
-                            {staffResources.map((staff) => (
-                                <div
-                                    key={staff.id}
-                                    className="flex items-center justify-between rounded-lg border p-3"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-                                            <span className="text-sm font-semibold text-primary">
-                                                {staff.name.split(' ').map(n => n[0]).join('')}
-                                            </span>
-                                        </div>
-                                        <div>
-                                            <p className="font-medium">{staff.name}</p>
-                                            <p className="text-sm text-muted-foreground">{staff.role} • {staff.department}</p>
-                                        </div>
-                                    </div>
-                                    <div className="text-right">
-                                        <Badge className={getStaffStatusColor(staff.status)}>
-                                            {staff.status.replace('_', ' ')}
-                                        </Badge>
-                                        {staff.currentAssignment && (
-                                            <p className="mt-1 text-xs text-muted-foreground">{staff.currentAssignment}</p>
-                                        )}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </CardContent>
-                </Card>
-            </div>
-
-            {/* Quick Actions */}
-            <Card>
-                <CardHeader>
-                    <CardTitle>Quick Actions</CardTitle>
-                    <CardDescription>Common resource management tasks</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="flex flex-wrap gap-3">
-                        <Button>Admit Patient</Button>
-                        <Button variant="outline">Discharge Patient</Button>
-                        <Button variant="outline">Book Equipment</Button>
-                        <Button variant="outline">Request Blood</Button>
-                        <Button variant="outline">Schedule Staff</Button>
-                        <Button variant="outline">Generate Report</Button>
+            {/* Bed Allocation Section */}
+            <div>
+                <div className="mb-4 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <BedDouble className="h-5 w-5 text-foreground" />
+                        <h2 className="text-lg font-bold text-foreground">Bed Allocation</h2>
+                        <span className="text-sm text-muted-foreground">Real-time bed occupancy status</span>
                     </div>
-                </CardContent>
-            </Card>
+                    <Button variant="outline" size="sm" asChild className="gap-1.5 transition-all hover:gap-2.5">
+                        <Link href="/dashboard/rooms">View All <ArrowRight className="h-3.5 w-3.5" /></Link>
+                    </Button>
+                </div>
+                {isLoading ? (
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                        {[1, 2, 3, 4].map(i => <Card key={i} className="border-border/50"><CardContent className="p-4"><div className="h-20 animate-pulse rounded bg-muted" /></CardContent></Card>)}
+                    </div>
+                ) : (
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                        {rooms?.slice(0, 8).map((room: Record<string, string | number>, index: number) => {
+                            const occupancy = Number(room.beds_total) > 0
+                                ? Math.round((Number(room.beds_occupied) / Number(room.beds_total)) * 100)
+                                : 0
+                            return (
+                                <Card key={room.id} className="animate-fade-in group border-border/50 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md" style={{ animationDelay: `${index * 50}ms` }}>
+                                    <CardContent className="p-4">
+                                        <div className="flex items-center justify-between">
+                                            <p className="font-semibold text-foreground">Room {room.room_number}</p>
+                                            <Badge variant="secondary" className={cn("text-xs font-medium", getRoomStatusColor(room.status as string))}>
+                                                {room.status}
+                                            </Badge>
+                                        </div>
+                                        <p className="mt-1 text-xs text-muted-foreground">{room.room_type} · Floor {room.floor}</p>
+                                        <div className="mt-3 flex items-center justify-between text-xs">
+                                            <span className="text-muted-foreground">Beds: {room.beds_occupied}/{room.beds_total}</span>
+                                            <span className="font-bold text-foreground">{occupancy}%</span>
+                                        </div>
+                                        <Progress value={occupancy} className="mt-1.5 h-1.5" />
+                                    </CardContent>
+                                </Card>
+                            )
+                        })}
+                    </div>
+                )}
+            </div>
+
+            {/* Blood Bank Section */}
+            <div>
+                <div className="mb-4 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <Droplets className="h-5 w-5 text-foreground" />
+                        <h2 className="text-lg font-bold text-foreground">Blood Stock</h2>
+                        <span className="text-sm text-muted-foreground">Current inventory levels</span>
+                    </div>
+                    <Button variant="outline" size="sm" asChild className="gap-1.5 transition-all hover:gap-2.5">
+                        <Link href="/dashboard/blood-bank">View All <ArrowRight className="h-3.5 w-3.5" /></Link>
+                    </Button>
+                </div>
+                {isLoading ? (
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                        {[1, 2, 3, 4].map(i => <Card key={i} className="border-border/50"><CardContent className="p-4"><div className="h-16 animate-pulse rounded bg-muted" /></CardContent></Card>)}
+                    </div>
+                ) : (
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                        {bloodStock?.map((blood: Record<string, string | number>, index: number) => {
+                            const units = Number(blood.units_available)
+                            const minThreshold = Number(blood.min_threshold)
+                            const statusLabel = getBloodStatusLabel(units, minThreshold)
+                            return (
+                                <Card key={blood.id || index} className="animate-fade-in group border-border/50 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md" style={{ animationDelay: `${index * 50}ms` }}>
+                                    <CardContent className="p-4">
+                                        <div className="flex items-center justify-between">
+                                            <p className="text-2xl font-extrabold text-foreground">{blood.blood_group}</p>
+                                            <Badge variant="secondary" className={cn("text-xs font-medium capitalize", getBloodStatusColor(units, minThreshold))}>
+                                                {statusLabel}
+                                            </Badge>
+                                        </div>
+                                        <div className="mt-2 flex items-center justify-between text-sm">
+                                            <span className="text-muted-foreground">{units} units</span>
+                                            <span className="text-xs text-muted-foreground">min: {minThreshold}</span>
+                                        </div>
+                                        <Progress value={Math.min((units / (minThreshold * 2)) * 100, 100)} className="mt-2 h-1.5" />
+                                    </CardContent>
+                                </Card>
+                            )
+                        })}
+                    </div>
+                )}
+            </div>
+
+            {/* Staff Overview Section */}
+            <div>
+                <div className="mb-4 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <Users className="h-5 w-5 text-foreground" />
+                        <h2 className="text-lg font-bold text-foreground">Staff Overview</h2>
+                        <span className="text-sm text-muted-foreground">Active personnel</span>
+                    </div>
+                    <Button variant="outline" size="sm" asChild className="gap-1.5 transition-all hover:gap-2.5">
+                        <Link href="/dashboard/staff">View All <ArrowRight className="h-3.5 w-3.5" /></Link>
+                    </Button>
+                </div>
+                {isLoading ? (
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        {[1, 2, 3].map(i => <Card key={i} className="border-border/50"><CardContent className="p-4"><div className="h-16 animate-pulse rounded bg-muted" /></CardContent></Card>)}
+                    </div>
+                ) : (
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        {staff?.slice(0, 6).map((member: Record<string, string | number>, index: number) => (
+                            <Card key={member.id} className="animate-fade-in group border-border/50 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md" style={{ animationDelay: `${index * 50}ms` }}>
+                                <CardContent className="flex items-center gap-3 p-4">
+                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 font-bold text-primary">
+                                        {(member.first_name as string)?.charAt(0)}{(member.last_name as string)?.charAt(0)}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="truncate font-medium text-foreground">{member.first_name} {member.last_name}</p>
+                                        <p className="truncate text-xs text-muted-foreground">{member.role} · {member.department}</p>
+                                    </div>
+                                    <Badge variant="secondary" className={cn("shrink-0 text-xs", getStaffStatusColor(member.status as string))}>
+                                        {(member.status as string)?.replace('_', ' ')}
+                                    </Badge>
+                                </CardContent>
+                            </Card>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            {/* Inventory Section */}
+            <div>
+                <div className="mb-4 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <Package className="h-5 w-5 text-foreground" />
+                        <h2 className="text-lg font-bold text-foreground">Inventory Status</h2>
+                        <span className="text-sm text-muted-foreground">Medical supplies</span>
+                    </div>
+                    <Button variant="outline" size="sm" asChild className="gap-1.5 transition-all hover:gap-2.5">
+                        <Link href="/dashboard/inventory">View All <ArrowRight className="h-3.5 w-3.5" /></Link>
+                    </Button>
+                </div>
+                {isLoading ? (
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                        {[1, 2, 3, 4].map(i => <Card key={i} className="border-border/50"><CardContent className="p-4"><div className="h-16 animate-pulse rounded bg-muted" /></CardContent></Card>)}
+                    </div>
+                ) : (
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                        {inventory?.slice(0, 8).map((item: Record<string, string | number>, index: number) => (
+                            <Card key={item.id} className="animate-fade-in group border-border/50 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md" style={{ animationDelay: `${index * 50}ms` }}>
+                                <CardContent className="p-4">
+                                    <div className="flex items-center justify-between">
+                                        <p className="truncate font-medium text-foreground">{item.name}</p>
+                                        <Badge variant="secondary" className={cn("shrink-0 text-xs capitalize", getInventoryStatusColor(item.status as string))}>
+                                            {(item.status as string)?.replace('_', ' ')}
+                                        </Badge>
+                                    </div>
+                                    <p className="mt-1 text-xs text-muted-foreground">{item.category}</p>
+                                    <div className="mt-2 flex items-center justify-between text-sm">
+                                        <span className="font-bold text-foreground">{item.quantity} {item.unit}</span>
+                                        <span className="text-xs text-muted-foreground">min: {item.reorder_level}</span>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        ))}
+                    </div>
+                )}
+            </div>
         </div>
     )
 }

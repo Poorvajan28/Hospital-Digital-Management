@@ -25,8 +25,8 @@ const statusColors: Record<string, string> = {
 const chartConfig = { units: { label: "Units", color: "var(--color-chart-1)" } }
 
 export default function BloodBankPage() {
-  const { data: donors, mutate } = useSWR("/api/blood-donors", fetcher)
-  const { data: stock } = useSWR("/api/blood-stock", fetcher)
+  const { data: donors, mutate } = useSWR("/api/blood-donors", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
+  const { data: stock } = useSWR("/api/blood-stock", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
   const [search, setSearch] = useState("")
   const [open, setOpen] = useState(false)
 
@@ -154,7 +154,7 @@ export default function BloodBankPage() {
                   <Select name="blood_group" required>
                     <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                     <SelectContent>
-                      {["O+","O-","A+","A-","B+","B-","AB+","AB-"].map(bg => (
+                      {["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"].map(bg => (
                         <SelectItem key={bg} value={bg}>{bg}</SelectItem>
                       ))}
                     </SelectContent>
@@ -180,7 +180,7 @@ export default function BloodBankPage() {
       </div>
 
       {!donors ? (
-        <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="h-16 animate-pulse rounded-lg bg-muted" />)}</div>
+        <div className="space-y-3">{[1, 2, 3].map(i => <div key={i} className="h-16 animate-pulse rounded-lg bg-muted" />)}</div>
       ) : (
         <div className="animate-fade-in overflow-x-auto rounded-xl border border-border/50 [animation-delay:400ms]">
           <table className="w-full text-sm">

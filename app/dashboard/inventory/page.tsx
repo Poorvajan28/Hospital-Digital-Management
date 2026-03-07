@@ -28,7 +28,7 @@ const categoryColors: Record<string, string> = {
 }
 
 export default function InventoryPage() {
-  const { data: inventory, mutate } = useSWR("/api/inventory", fetcher)
+  const { data: inventory, mutate } = useSWR("/api/inventory", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
   const [search, setSearch] = useState("")
   const [categoryFilter, setCategoryFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
@@ -177,7 +177,7 @@ export default function InventoryPage() {
 
       {/* Table */}
       {!inventory ? (
-        <div className="space-y-3">{[1,2,3,4].map(i => <div key={i} className="h-14 animate-pulse rounded-lg bg-muted" />)}</div>
+        <div className="space-y-3">{[1, 2, 3, 4].map(i => <div key={i} className="h-14 animate-pulse rounded-lg bg-muted" />)}</div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-border/50">
           <table className="w-full text-sm">

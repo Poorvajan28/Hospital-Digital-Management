@@ -28,8 +28,8 @@ const statusColors: Record<string, string> = {
 }
 
 export default function StaffPage() {
-  const { data: staff, mutate } = useSWR("/api/staff", fetcher)
-  const { data: departments } = useSWR("/api/departments", fetcher)
+  const { data: staff, mutate } = useSWR("/api/staff", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
+  const { data: departments } = useSWR("/api/departments", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
   const [search, setSearch] = useState("")
   const [roleFilter, setRoleFilter] = useState("all")
   const [open, setOpen] = useState(false)

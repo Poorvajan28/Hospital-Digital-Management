@@ -29,10 +29,10 @@ const typeColors: Record<string, string> = {
 }
 
 export default function AppointmentsPage() {
-  const { data: appointments, mutate } = useSWR("/api/appointments", fetcher)
-  const { data: patients } = useSWR("/api/patients", fetcher)
-  const { data: staff } = useSWR("/api/staff", fetcher)
-  const { data: departments } = useSWR("/api/departments", fetcher)
+  const { data: appointments, mutate } = useSWR("/api/appointments", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
+  const { data: patients } = useSWR("/api/patients", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
+  const { data: staff } = useSWR("/api/staff", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
+  const { data: departments } = useSWR("/api/departments", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [open, setOpen] = useState(false)
@@ -158,7 +158,7 @@ export default function AppointmentsPage() {
       </div>
 
       {!appointments ? (
-        <div className="space-y-3">{[1,2,3,4].map(i => <div key={i} className="h-16 animate-pulse rounded-lg bg-muted" />)}</div>
+        <div className="space-y-3">{[1, 2, 3, 4].map(i => <div key={i} className="h-16 animate-pulse rounded-lg bg-muted" />)}</div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-border/50">
           <table className="w-full text-sm">

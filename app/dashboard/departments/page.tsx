@@ -8,7 +8,7 @@ import { Building2, Users, Phone } from "lucide-react"
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 export default function DepartmentsPage() {
-  const { data: departments } = useSWR("/api/departments", fetcher)
+  const { data: departments } = useSWR("/api/departments", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
 
   return (
     <div className="space-y-6">

@@ -15,9 +15,9 @@ import { toast } from "sonner"
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 export default function MedicalRecordsPage() {
-  const { data: records, mutate } = useSWR("/api/medical-records", fetcher)
-  const { data: patients } = useSWR("/api/patients", fetcher)
-  const { data: staff } = useSWR("/api/staff", fetcher)
+  const { data: records, mutate } = useSWR("/api/medical-records", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
+  const { data: patients } = useSWR("/api/patients", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
+  const { data: staff } = useSWR("/api/staff", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
   const [search, setSearch] = useState("")
   const [open, setOpen] = useState(false)
 
@@ -108,7 +108,7 @@ export default function MedicalRecordsPage() {
       </div>
 
       {!records ? (
-        <div className="space-y-3">{[1,2,3,4].map(i => <div key={i} className="h-24 animate-pulse rounded-lg bg-muted" />)}</div>
+        <div className="space-y-3">{[1, 2, 3, 4].map(i => <div key={i} className="h-24 animate-pulse rounded-lg bg-muted" />)}</div>
       ) : (
         <div className="space-y-4">
           {filtered?.map((r: Record<string, string | number | null>) => (

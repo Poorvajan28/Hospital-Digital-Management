@@ -27,7 +27,7 @@ const bloodGroupColors: Record<string, string> = {
 }
 
 export default function PatientsPage() {
-  const { data: patients, mutate } = useSWR("/api/patients", fetcher)
+  const { data: patients, mutate } = useSWR("/api/patients", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
   const [search, setSearch] = useState("")
   const [open, setOpen] = useState(false)
 
@@ -88,7 +88,7 @@ export default function PatientsPage() {
                   <Select name="blood_group">
                     <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                     <SelectContent>
-                      {["O+","O-","A+","A-","B+","B-","AB+","AB-"].map(bg => (
+                      {["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"].map(bg => (
                         <SelectItem key={bg} value={bg}>{bg}</SelectItem>
                       ))}
                     </SelectContent>
@@ -113,7 +113,7 @@ export default function PatientsPage() {
       </div>
 
       {!patients ? (
-        <div className="space-y-3">{[1,2,3,4].map(i => <div key={i} className="h-20 animate-pulse rounded-lg bg-muted" />)}</div>
+        <div className="space-y-3">{[1, 2, 3, 4].map(i => <div key={i} className="h-20 animate-pulse rounded-lg bg-muted" />)}</div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-border/50">
           <table className="w-full text-sm">

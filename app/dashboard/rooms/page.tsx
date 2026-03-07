@@ -23,7 +23,7 @@ const typeColors: Record<string, string> = {
 }
 
 export default function RoomsPage() {
-  const { data: rooms } = useSWR("/api/rooms", fetcher)
+  const { data: rooms } = useSWR("/api/rooms", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
 
   const totalBeds = rooms?.reduce((sum: number, r: { beds_total: number }) => sum + Number(r.beds_total), 0) || 0
   const occupiedBeds = rooms?.reduce((sum: number, r: { beds_occupied: number }) => sum + Number(r.beds_occupied), 0) || 0
