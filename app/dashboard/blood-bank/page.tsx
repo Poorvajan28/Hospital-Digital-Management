@@ -8,13 +8,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Droplets, Plus, Search, Heart } from "lucide-react"
+import { Droplets, Plus, Search, Heart, Edit, Trash2 } from "lucide-react"
 import { Bar, BarChart, XAxis, YAxis, Cell } from "recharts"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { useState } from "react"
 import { useSession } from "next-auth/react"
 import { toast } from "sonner"
-import { canAdd, type UserRole } from "@/lib/role-permissions"
+import { canAdd, canEdit, canDelete, type UserRole } from "@/lib/role-permissions"
 import { AnimatedCounter } from "@/components/animated-counter"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
@@ -35,10 +35,13 @@ export default function BloodBankPage() {
   const [search, setSearch] = useState("")
   const [bloodFilter, setBloodFilter] = useState("all")
   const [open, setOpen] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
+  const [selectedDonor, setSelectedDonor] = useState<any>(null)
 
   // Controlled form state
   const [formBlood, setFormBlood] = useState("")
   const [formGender, setFormGender] = useState("")
+  const [formStatus, setFormStatus] = useState("active")
 
   const filtered = donors?.filter((d: Record<string, string>) => {
     const matchesSearch = `${d.first_name} ${d.last_name} ${d.blood_group} ${d.email}`.toLowerCase().includes(search.toLowerCase())
@@ -49,7 +52,10 @@ export default function BloodBankPage() {
   const totalUnits = stock?.reduce((sum: number, s: { units_available: number }) => sum + Number(s.units_available), 0) || 0
   const criticalStock = stock?.filter((s: { units_available: number }) => Number(s.units_available) < 10) || []
 
-  function resetForm() { setFormBlood(""); setFormGender("") }
+  function resetForm() {
+    setFormBlood(""); setFormGender("")
+    setFormStatus("active"); setSelectedDonor(null)
+  }
 
   async function handleAdd(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -63,6 +69,7 @@ export default function BloodBankPage() {
       date_of_birth: form.get("date_of_birth"),
       gender: formGender,
       address: form.get("address"),
+      status: "active",
     }
     if (!body.first_name || !body.last_name || !body.blood_group) {
       toast.error("Please fill in name and blood group")
@@ -78,6 +85,56 @@ export default function BloodBankPage() {
       const err = await res.json().catch(() => ({}))
       toast.error(err.error || "Failed to register donor")
     }
+  }
+
+  async function handleEdit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const form = new FormData(e.currentTarget)
+    const body = {
+      first_name: form.get("first_name"),
+      last_name: form.get("last_name"),
+      email: form.get("email"),
+      phone: form.get("phone"),
+      blood_group: formBlood,
+      date_of_birth: form.get("date_of_birth"),
+      gender: formGender,
+      address: form.get("address"),
+      status: formStatus,
+    }
+    const res = await fetch(`/api/blood-donors?id=${selectedDonor.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    })
+    if (res.ok) {
+      toast.success("Donor details updated successfully")
+      mutate()
+      setEditOpen(false)
+      resetForm()
+    } else {
+      const err = await res.json().catch(() => ({}))
+      toast.error(err.error || "Failed to update donor")
+    }
+  }
+
+  async function handleDelete(id: number) {
+    if (!confirm("Are you sure you want to delete this donor record?")) return
+    const res = await fetch(`/api/blood-donors?id=${id}`, { method: "DELETE" })
+    if (res.ok) {
+      toast.success("Donor record deleted successfully")
+      mutate()
+    } else {
+      const err = await res.json().catch(() => ({}))
+      toast.error(err.error || "Failed to delete donor")
+    }
+  }
+
+  function openEdit(donor: any) {
+    setSelectedDonor(donor)
+    setFormBlood(donor.blood_group)
+    setFormGender(donor.gender || "")
+    setFormStatus(donor.status)
+    setEditOpen(true)
   }
 
   return (
@@ -232,11 +289,14 @@ export default function BloodBankPage() {
                 <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Last Donation</th>
                 <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Total</th>
                 <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Status</th>
+                {(canEdit(userRole, "blood_bank") || canDelete(userRole, "blood_bank")) && (
+                  <th className="px-4 py-3.5 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Actions</th>
+                )}
               </tr>
             </thead>
             <tbody>
-              {filtered?.map((d: Record<string, string | number | null>) => (
-                <tr key={d.id} className="border-b border-border/30 transition-colors last:border-0 hover:bg-muted/20">
+              {filtered?.map((d: Record<string, string | number | null>, index: number) => (
+                <tr key={d.id} className="animate-row-enter border-b border-border/30 transition-colors last:border-0 hover:bg-muted/20" style={{ animationDelay: `${index * 40}ms` }}>
                   <td className="px-4 py-3.5 font-semibold text-foreground">{d.first_name} {d.last_name}</td>
                   <td className="px-4 py-3.5"><Badge variant="secondary" className="bg-[#dc2626]/10 font-bold text-[#dc2626]">{d.blood_group}</Badge></td>
                   <td className="px-4 py-3.5">
@@ -252,10 +312,80 @@ export default function BloodBankPage() {
                       {d.status}
                     </Badge>
                   </td>
+                  {(canEdit(userRole, "blood_bank") || canDelete(userRole, "blood_bank")) && (
+                    <td className="px-4 py-3.5 text-right">
+                      <div className="flex justify-end gap-2">
+                        {canEdit(userRole, "blood_bank") && (
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => openEdit(d)}>
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {canDelete(userRole, "blood_bank") && (
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(d.id as number)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
           </table>
+
+          <Dialog open={editOpen} onOpenChange={(v) => { setEditOpen(v); if (!v) resetForm() }}>
+            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+              <DialogHeader><DialogTitle className="text-xl">Edit Donor Profile</DialogTitle></DialogHeader>
+              <form onSubmit={handleEdit} className="grid gap-4 pt-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label>First Name *</Label><Input name="first_name" defaultValue={selectedDonor?.first_name} required /></div>
+                  <div className="space-y-2"><Label>Last Name *</Label><Input name="last_name" defaultValue={selectedDonor?.last_name} required /></div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label>Email</Label><Input name="email" type="email" defaultValue={selectedDonor?.email} /></div>
+                  <div className="space-y-2"><Label>Phone</Label><Input name="phone" defaultValue={selectedDonor?.phone} /></div>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label>Blood Group *</Label>
+                    <Select value={formBlood} onValueChange={setFormBlood}>
+                      <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                      <SelectContent>
+                        {["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"].map(bg => (
+                          <SelectItem key={bg} value={bg}>{bg}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2"><Label>DOB</Label><Input name="date_of_birth" type="date" defaultValue={selectedDonor?.date_of_birth} /></div>
+                  <div className="space-y-2">
+                    <Label>Gender</Label>
+                    <Select value={formGender} onValueChange={setFormGender}>
+                      <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Male">Male</SelectItem>
+                        <SelectItem value="Female">Female</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label>Status</Label>
+                    <Select value={formStatus} onValueChange={setFormStatus}>
+                      <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="inactive">Inactive</SelectItem>
+                        <SelectItem value="deferred">Deferred</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2"><Label>Address</Label><Input name="address" defaultValue={selectedDonor?.address} /></div>
+                </div>
+                <Button type="submit" className="w-full">Update Donor Profile</Button>
+              </form>
+            </DialogContent>
+          </Dialog>
         </div>
       )}
     </div>

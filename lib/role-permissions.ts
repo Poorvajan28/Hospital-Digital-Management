@@ -15,6 +15,7 @@ export type Resource =
     | "departments"
     | "rooms"
     | "equipment"
+    | "beds"
 
 const permissions: Record<UserRole, Record<Resource, Permission[]>> = {
     admin: {
@@ -27,6 +28,7 @@ const permissions: Record<UserRole, Record<Resource, Permission[]>> = {
         departments: ["view", "add", "edit", "delete"],
         rooms: ["view", "add", "edit", "delete"],
         equipment: ["view", "add", "edit", "delete"],
+        beds: ["view", "add", "edit", "delete"],
     },
     physician: {
         staff: ["view"],
@@ -38,6 +40,7 @@ const permissions: Record<UserRole, Record<Resource, Permission[]>> = {
         departments: ["view"],
         rooms: ["view"],
         equipment: ["view"],
+        beds: ["view"],
     },
     nurse: {
         staff: ["view"],
@@ -49,9 +52,10 @@ const permissions: Record<UserRole, Record<Resource, Permission[]>> = {
         departments: ["view"],
         rooms: ["view"],
         equipment: ["view"],
+        beds: ["view"],
     },
     patient: {
-        staff: ["view"],
+        staff: [],
         appointments: ["view"],
         patients: [],
         inventory: [],
@@ -60,7 +64,22 @@ const permissions: Record<UserRole, Record<Resource, Permission[]>> = {
         departments: ["view"],
         rooms: [],
         equipment: [],
+        beds: [],
     },
+}
+
+// Map dashboard paths to resources for sidebar filtering
+const pathToResource: Record<string, Resource> = {
+    "/dashboard/staff": "staff",
+    "/dashboard/appointments": "appointments",
+    "/dashboard/patients": "patients",
+    "/dashboard/inventory": "inventory",
+    "/dashboard/blood-bank": "blood_bank",
+    "/dashboard/medical-records": "medical_records",
+    "/dashboard/departments": "departments",
+    "/dashboard/rooms": "rooms",
+    "/dashboard/equipment": "equipment",
+    "/dashboard/beds": "beds",
 }
 
 export function hasPermission(
@@ -86,4 +105,19 @@ export function canDelete(role: UserRole | undefined, resource: Resource): boole
 
 export function canView(role: UserRole | undefined, resource: Resource): boolean {
     return hasPermission(role, resource, "view")
+}
+
+/**
+ * Returns list of dashboard paths visible to the given role.
+ * /dashboard is always visible.
+ */
+export function getVisiblePages(role: UserRole | undefined): string[] {
+    const alwaysVisible = ["/dashboard"]
+    if (!role) return alwaysVisible
+
+    const visible = Object.entries(pathToResource)
+        .filter(([, resource]) => canView(role, resource))
+        .map(([path]) => path)
+
+    return [...alwaysVisible, ...visible]
 }

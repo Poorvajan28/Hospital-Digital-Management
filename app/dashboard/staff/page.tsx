@@ -8,11 +8,11 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Users, Plus, Search, Mail, Phone, UserCircle, ArrowUpDown } from "lucide-react"
+import { Users, Plus, Search, Mail, Phone, UserCircle, ArrowUpDown, Edit, Trash2 } from "lucide-react"
 import { useState } from "react"
 import { useSession } from "next-auth/react"
 import { toast } from "sonner"
-import { canAdd, type UserRole } from "@/lib/role-permissions"
+import { canAdd, canEdit, canDelete, type UserRole } from "@/lib/role-permissions"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -39,10 +39,13 @@ export default function StaffPage() {
   const [statusFilter, setStatusFilter] = useState("all")
   const [sortBy, setSortBy] = useState<"name" | "date">("name")
   const [open, setOpen] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
+  const [selectedStaff, setSelectedStaff] = useState<any>(null)
 
   // Form state for controlled Selects
   const [formRole, setFormRole] = useState("")
   const [formDeptId, setFormDeptId] = useState("")
+  const [formStatus, setFormStatus] = useState("active")
 
   const filtered = staff?.filter((s: Record<string, string>) => {
     const matchesSearch =
@@ -54,6 +57,11 @@ export default function StaffPage() {
     if (sortBy === "name") return `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`)
     return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
   })
+
+  function resetForm() {
+    setFormRole(""); setFormDeptId(""); setFormStatus("active")
+    setSelectedStaff(null)
+  }
 
   async function handleAddStaff(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -78,12 +86,61 @@ export default function StaffPage() {
       toast.success("Staff member added successfully")
       mutate()
       setOpen(false)
-      setFormRole("")
-      setFormDeptId("")
+      resetForm()
     } else {
       const err = await res.json().catch(() => ({}))
       toast.error(err.error || "Failed to add staff member")
     }
+  }
+
+  async function handleEditStaff(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const form = new FormData(e.currentTarget)
+    const body = {
+      first_name: form.get("first_name"),
+      last_name: form.get("last_name"),
+      email: form.get("email"),
+      phone: form.get("phone"),
+      role: formRole,
+      department_id: formDeptId ? Number(formDeptId) : null,
+      specialization: form.get("specialization"),
+      salary: form.get("salary") ? Number(form.get("salary")) : null,
+      status: formStatus,
+    }
+    const res = await fetch(`/api/staff?id=${selectedStaff.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    })
+    if (res.ok) {
+      toast.success("Staff member updated successfully")
+      mutate()
+      setEditOpen(false)
+      resetForm()
+    } else {
+      const err = await res.json().catch(() => ({}))
+      toast.error(err.error || "Failed to update staff member")
+    }
+  }
+
+  async function handleDeleteStaff(id: number) {
+    if (!confirm("Are you sure you want to delete this staff member?")) return
+    const res = await fetch(`/api/staff?id=${id}`, { method: "DELETE" })
+    if (res.ok) {
+      toast.success("Staff member deleted successfully")
+      mutate()
+    } else {
+      const err = await res.json().catch(() => ({}))
+      toast.error(err.error || "Failed to delete staff member")
+    }
+  }
+
+  function openEdit(member: any) {
+    setSelectedStaff(member)
+    setFormRole(member.role)
+    setFormDeptId(member.department_id ? String(member.department_id) : "")
+    setFormStatus(member.status)
+    setEditOpen(true)
   }
 
   return (
@@ -228,6 +285,18 @@ export default function StaffPage() {
                         <p className="mt-0.5 text-xs text-muted-foreground">{member.specialization || member.role}</p>
                       </div>
                     </div>
+                    <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                      {canEdit(userRole, "staff") && (
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => openEdit(member)}>
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {canDelete(userRole, "staff") && (
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDeleteStaff(member.id as number)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm">
@@ -266,6 +335,81 @@ export default function StaffPage() {
               </Card>
             ))}
           </div>
+
+          <Dialog open={editOpen} onOpenChange={(v) => { setEditOpen(v); if (!v) resetForm(); }}>
+            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+              <DialogHeader>
+                <DialogTitle className="text-xl">Edit Staff Member</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleEditStaff} className="grid gap-4 pt-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit_first_name">First Name *</Label>
+                    <Input id="edit_first_name" name="first_name" defaultValue={selectedStaff?.first_name} required className="border-border/50" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit_last_name">Last Name *</Label>
+                    <Input id="edit_last_name" name="last_name" defaultValue={selectedStaff?.last_name} required className="border-border/50" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit_email">Email</Label>
+                  <Input id="edit_email" name="email" type="email" defaultValue={selectedStaff?.email} className="border-border/50" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit_phone">Phone</Label>
+                  <Input id="edit_phone" name="phone" defaultValue={selectedStaff?.phone} className="border-border/50" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Role *</Label>
+                    <Select value={formRole} onValueChange={setFormRole}>
+                      <SelectTrigger><SelectValue placeholder="Select role" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="physician">Physician</SelectItem>
+                        <SelectItem value="nurse">Nurse</SelectItem>
+                        <SelectItem value="technician">Technician</SelectItem>
+                        <SelectItem value="admin">Admin</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Department</Label>
+                    <Select value={formDeptId} onValueChange={setFormDeptId}>
+                      <SelectTrigger><SelectValue placeholder="Select dept" /></SelectTrigger>
+                      <SelectContent>
+                        {departments?.map((d: { id: number; name: string }) => (
+                          <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit_specialization">Specialization</Label>
+                    <Input id="edit_specialization" name="specialization" defaultValue={selectedStaff?.specialization} className="border-border/50" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Status</Label>
+                    <Select value={formStatus} onValueChange={setFormStatus}>
+                      <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="on_leave">On Leave</SelectItem>
+                        <SelectItem value="inactive">Inactive</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit_salary">Annual Salary</Label>
+                  <Input id="edit_salary" name="salary" type="number" defaultValue={selectedStaff?.salary} className="border-border/50" />
+                </div>
+                <Button type="submit" className="w-full shadow-lg shadow-primary/20">Update Staff Member</Button>
+              </form>
+            </DialogContent>
+          </Dialog>
         </>
       )}
     </div>

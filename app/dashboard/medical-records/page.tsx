@@ -8,11 +8,11 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
-import { Plus, Search, FileText } from "lucide-react"
+import { Plus, Search, FileText, Edit, Trash2 } from "lucide-react"
 import { useState } from "react"
 import { useSession } from "next-auth/react"
 import { toast } from "sonner"
-import { canAdd, type UserRole } from "@/lib/role-permissions"
+import { canAdd, canEdit, canDelete, type UserRole } from "@/lib/role-permissions"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -24,6 +24,8 @@ export default function MedicalRecordsPage() {
   const { data: staff } = useSWR("/api/staff", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
   const [search, setSearch] = useState("")
   const [open, setOpen] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
+  const [selectedRecord, setSelectedRecord] = useState<any>(null)
 
   // Controlled form state
   const [formPatient, setFormPatient] = useState("")
@@ -35,7 +37,10 @@ export default function MedicalRecordsPage() {
     `${r.patient_name || ""} ${r.doctor_name || ""} ${r.diagnosis || ""}`.toLowerCase().includes(search.toLowerCase())
   )
 
-  function resetForm() { setFormPatient(""); setFormDoctor("") }
+  function resetForm() {
+    setFormPatient(""); setFormDoctor("")
+    setSelectedRecord(null)
+  }
 
   async function handleAdd(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -64,6 +69,54 @@ export default function MedicalRecordsPage() {
       const err = await res.json().catch(() => ({}))
       toast.error(err.error || "Failed to add medical record")
     }
+  }
+
+  async function handleEdit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const form = new FormData(e.currentTarget)
+    const body = {
+      patient_id: Number(formPatient),
+      doctor_id: Number(formDoctor),
+      diagnosis: form.get("diagnosis"),
+      treatment: form.get("treatment"),
+      prescription: form.get("prescription"),
+      visit_date: form.get("visit_date"),
+      follow_up_date: form.get("follow_up_date") || null,
+      notes: form.get("notes"),
+    }
+    const res = await fetch(`/api/medical-records?id=${selectedRecord.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    })
+    if (res.ok) {
+      toast.success("Medical record updated successfully")
+      mutate()
+      setEditOpen(false)
+      resetForm()
+    } else {
+      const err = await res.json().catch(() => ({}))
+      toast.error(err.error || "Failed to update record")
+    }
+  }
+
+  async function handleDelete(id: number) {
+    if (!confirm("Are you sure you want to delete this medical record?")) return
+    const res = await fetch(`/api/medical-records?id=${id}`, { method: "DELETE" })
+    if (res.ok) {
+      toast.success("Medical record deleted successfully")
+      mutate()
+    } else {
+      const err = await res.json().catch(() => ({}))
+      toast.error(err.error || "Failed to delete record")
+    }
+  }
+
+  function openEdit(record: any) {
+    setSelectedRecord(record)
+    setFormPatient(String(record.patient_id))
+    setFormDoctor(String(record.doctor_id))
+    setEditOpen(true)
   }
 
   return (
@@ -138,7 +191,21 @@ export default function MedicalRecordsPage() {
                     <span className="text-sm text-muted-foreground">by Dr. {r.doctor_name || "Unknown"}</span>
                   </div>
                   <div className="rounded-md bg-muted/50 p-3">
-                    <p className="text-sm font-medium text-foreground">Diagnosis: {r.diagnosis}</p>
+                    <div className="flex items-start justify-between">
+                      <p className="text-sm font-medium text-foreground">Diagnosis: {r.diagnosis}</p>
+                      <div className="flex gap-1">
+                        {canEdit(userRole, "medical_records") && (
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary" onClick={() => openEdit(r)}>
+                            <Edit className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                        {canDelete(userRole, "medical_records") && (
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(r.id as number)}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
                     {r.treatment && <p className="mt-1 text-sm text-muted-foreground">Treatment: {r.treatment}</p>}
                     {r.prescription && <p className="mt-1 text-sm text-muted-foreground">Rx: {r.prescription}</p>}
                   </div>
@@ -157,6 +224,47 @@ export default function MedicalRecordsPage() {
           ))}
         </div>
       )}
+
+      <Dialog open={editOpen} onOpenChange={(v) => { setEditOpen(v); if (!v) resetForm() }}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader><DialogTitle>Edit Medical Record</DialogTitle></DialogHeader>
+          <form onSubmit={handleEdit} className="grid gap-4 pt-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Patient *</Label>
+                <Select value={formPatient} onValueChange={setFormPatient}>
+                  <SelectTrigger><SelectValue placeholder="Select patient" /></SelectTrigger>
+                  <SelectContent>
+                    {patients?.map((p: { id: number; first_name: string; last_name: string }) => (
+                      <SelectItem key={p.id} value={String(p.id)}>{p.first_name} {p.last_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Doctor *</Label>
+                <Select value={formDoctor} onValueChange={setFormDoctor}>
+                  <SelectTrigger><SelectValue placeholder="Select doctor" /></SelectTrigger>
+                  <SelectContent>
+                    {doctors?.map((d: { id: number; first_name: string; last_name: string }) => (
+                      <SelectItem key={d.id} value={String(d.id)}>Dr. {d.first_name} {d.last_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2"><Label>Diagnosis *</Label><Textarea name="diagnosis" defaultValue={selectedRecord?.diagnosis} required rows={2} /></div>
+            <div className="space-y-2"><Label>Treatment</Label><Textarea name="treatment" defaultValue={selectedRecord?.treatment} rows={2} /></div>
+            <div className="space-y-2"><Label>Prescription</Label><Textarea name="prescription" defaultValue={selectedRecord?.prescription} rows={2} /></div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2"><Label>Visit Date</Label><Input name="visit_date" type="date" defaultValue={selectedRecord?.visit_date} /></div>
+              <div className="space-y-2"><Label>Follow-up Date</Label><Input name="follow_up_date" type="date" defaultValue={selectedRecord?.follow_up_date} /></div>
+            </div>
+            <div className="space-y-2"><Label>Notes</Label><Textarea name="notes" defaultValue={selectedRecord?.notes} rows={2} /></div>
+            <Button type="submit" className="w-full">Update Record</Button>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -8,11 +8,11 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
-import { Plus, Search, CalendarDays, ArrowUpDown } from "lucide-react"
+import { Plus, Search, CalendarDays, ArrowUpDown, Edit, Trash2 } from "lucide-react"
 import { useState } from "react"
 import { useSession } from "next-auth/react"
 import { toast } from "sonner"
-import { canAdd, type UserRole } from "@/lib/role-permissions"
+import { canAdd, canEdit, canDelete, type UserRole } from "@/lib/role-permissions"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -41,12 +41,15 @@ export default function AppointmentsPage() {
   const [statusFilter, setStatusFilter] = useState("all")
   const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest")
   const [open, setOpen] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
+  const [selectedAppointment, setSelectedAppointment] = useState<any>(null)
 
   // Controlled form state for Selects
   const [formPatient, setFormPatient] = useState("")
   const [formDoctor, setFormDoctor] = useState("")
   const [formDept, setFormDept] = useState("")
   const [formType, setFormType] = useState("consultation")
+  const [formStatus, setFormStatus] = useState("scheduled")
 
   const doctors = staff?.filter((s: Record<string, string>) => s.role === "physician" || s.role === "Doctor")
 
@@ -62,7 +65,8 @@ export default function AppointmentsPage() {
   })
 
   function resetForm() {
-    setFormPatient(""); setFormDoctor(""); setFormDept(""); setFormType("consultation")
+    setFormPatient(""); setFormDoctor(""); setFormDept(""); setFormType("consultation"); setFormStatus("scheduled")
+    setSelectedAppointment(null)
   }
 
   async function handleAdd(e: React.FormEvent<HTMLFormElement>) {
@@ -91,6 +95,57 @@ export default function AppointmentsPage() {
       const err = await res.json().catch(() => ({}))
       toast.error(err.error || "Failed to schedule appointment")
     }
+  }
+
+  async function handleEdit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const form = new FormData(e.currentTarget)
+    const body = {
+      patient_id: Number(formPatient),
+      doctor_id: Number(formDoctor),
+      department_id: Number(formDept),
+      appointment_date: form.get("appointment_date"),
+      appointment_time: form.get("appointment_time"),
+      type: formType,
+      status: formStatus,
+      notes: form.get("notes"),
+    }
+    const res = await fetch(`/api/appointments?id=${selectedAppointment.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    })
+    if (res.ok) {
+      toast.success("Appointment updated successfully")
+      mutate()
+      setEditOpen(false)
+      resetForm()
+    } else {
+      const err = await res.json().catch(() => ({}))
+      toast.error(err.error || "Failed to update appointment")
+    }
+  }
+
+  async function handleDelete(id: number) {
+    if (!confirm("Are you sure you want to delete this appointment?")) return
+    const res = await fetch(`/api/appointments?id=${id}`, { method: "DELETE" })
+    if (res.ok) {
+      toast.success("Appointment deleted successfully")
+      mutate()
+    } else {
+      const err = await res.json().catch(() => ({}))
+      toast.error(err.error || "Failed to delete appointment")
+    }
+  }
+
+  function openEdit(a: any) {
+    setSelectedAppointment(a)
+    setFormPatient(String(a.patient_id))
+    setFormDoctor(String(a.doctor_id))
+    setFormDept(String(a.department_id))
+    setFormType(a.type)
+    setFormStatus(a.status)
+    setEditOpen(true)
   }
 
   return (
@@ -201,6 +256,9 @@ export default function AppointmentsPage() {
                 <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-foreground" onClick={() => setSortOrder(sortOrder === "newest" ? "oldest" : "newest")}>Date & Time ↕</th>
                 <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Type</th>
                 <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Status</th>
+                {(canEdit(userRole, "appointments") || canDelete(userRole, "appointments")) && (
+                  <th className="px-4 py-3.5 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Actions</th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -222,10 +280,101 @@ export default function AppointmentsPage() {
                       {(a.status as string)?.replace("_", " ")}
                     </Badge>
                   </td>
+                  {(canEdit(userRole, "appointments") || canDelete(userRole, "appointments")) && (
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex justify-end gap-2">
+                        {canEdit(userRole, "appointments") && (
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => openEdit(a)}>
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {canDelete(userRole, "appointments") && (
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(a.id as number)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
           </table>
+
+          <Dialog open={editOpen} onOpenChange={(v) => { setEditOpen(v); if (!v) resetForm(); }}>
+            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+              <DialogHeader><DialogTitle>Edit Appointment</DialogTitle></DialogHeader>
+              <form onSubmit={handleEdit} className="grid gap-4 pt-4">
+                <div className="space-y-2">
+                  <Label>Patient *</Label>
+                  <Select value={formPatient} onValueChange={setFormPatient}>
+                    <SelectTrigger><SelectValue placeholder="Select patient" /></SelectTrigger>
+                    <SelectContent>
+                      {patients?.map((p: { id: number; first_name: string; last_name: string }) => (
+                        <SelectItem key={p.id} value={String(p.id)}>{p.first_name} {p.last_name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Doctor *</Label>
+                    <Select value={formDoctor} onValueChange={setFormDoctor}>
+                      <SelectTrigger><SelectValue placeholder="Select doctor" /></SelectTrigger>
+                      <SelectContent>
+                        {doctors?.map((d: { id: number; first_name: string; last_name: string }) => (
+                          <SelectItem key={d.id} value={String(d.id)}>Dr. {d.first_name} {d.last_name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Department *</Label>
+                    <Select value={formDept} onValueChange={setFormDept}>
+                      <SelectTrigger><SelectValue placeholder="Select dept" /></SelectTrigger>
+                      <SelectContent>
+                        {departments?.map((d: { id: number; name: string }) => (
+                          <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label>Date *</Label><Input name="appointment_date" type="date" defaultValue={selectedAppointment?.appointment_date} required /></div>
+                  <div className="space-y-2"><Label>Time *</Label><Input name="appointment_time" type="time" defaultValue={selectedAppointment?.appointment_time?.slice(0, 5)} required /></div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Type</Label>
+                    <Select value={formType} onValueChange={setFormType}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="consultation">Consultation</SelectItem>
+                        <SelectItem value="follow_up">Follow-up</SelectItem>
+                        <SelectItem value="emergency">Emergency</SelectItem>
+                        <SelectItem value="surgery">Surgery</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Status</Label>
+                    <Select value={formStatus} onValueChange={setFormStatus}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="scheduled">Scheduled</SelectItem>
+                        <SelectItem value="completed">Completed</SelectItem>
+                        <SelectItem value="cancelled">Cancelled</SelectItem>
+                        <SelectItem value="no_show">No Show</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-2"><Label>Notes</Label><Textarea name="notes" rows={2} defaultValue={selectedAppointment?.notes} /></div>
+                <Button type="submit" className="w-full">Update Appointment</Button>
+              </form>
+            </DialogContent>
+          </Dialog>
         </div>
       )}
     </div>

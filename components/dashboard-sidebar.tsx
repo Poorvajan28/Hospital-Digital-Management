@@ -17,20 +17,26 @@ import {
   Menu,
   X,
   Home,
+  Stethoscope,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { useState } from "react"
+import { useSession } from "next-auth/react"
+import { getVisiblePages, type UserRole } from "@/lib/role-permissions"
 
-const navItems = [
+const allNavItems = [
   { href: "/dashboard", label: "Resource Dashboard", icon: LayoutDashboard },
   { href: "/dashboard/beds", label: "Bed Management", icon: BedDouble },
   { href: "/dashboard/equipment", label: "Equipment", icon: Package },
   { href: "/dashboard/blood-bank", label: "Blood Bank", icon: Droplets },
-  { href: "/dashboard/staff", label: "Staff Schedule", icon: Users },
+  { href: "/dashboard/staff", label: "Staff Directory", icon: Users },
+  { href: "/dashboard/patients", label: "Patients", icon: Stethoscope },
   { href: "/dashboard/appointments", label: "Appointments", icon: CalendarDays },
+  { href: "/dashboard/medical-records", label: "Medical Records", icon: FileText },
   { href: "/dashboard/inventory", label: "Medical Inventory", icon: Activity },
   { href: "/dashboard/departments", label: "Departments", icon: Building2 },
+  { href: "/dashboard/rooms", label: "Rooms & Beds", icon: BedDouble },
 ]
 
 function NavLink({
@@ -38,7 +44,7 @@ function NavLink({
   collapsed,
   onClick,
 }: {
-  item: (typeof navItems)[0]
+  item: (typeof allNavItems)[0]
   collapsed: boolean
   onClick?: () => void
 }) {
@@ -70,6 +76,11 @@ function NavLink({
 export function DashboardSidebar() {
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const { data: session } = useSession()
+  const userRole = session?.user?.role as UserRole | undefined
+
+  const visiblePages = getVisiblePages(userRole)
+  const navItems = allNavItems.filter((item) => visiblePages.includes(item.href))
 
   return (
     <>

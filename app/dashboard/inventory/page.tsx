@@ -8,11 +8,11 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Package, Plus, Search, AlertTriangle, CheckCircle, XCircle, ArrowUpDown } from "lucide-react"
+import { Package, Plus, Search, AlertTriangle, CheckCircle, XCircle, ArrowUpDown, Edit, Trash2 } from "lucide-react"
 import { useState } from "react"
 import { useSession } from "next-auth/react"
 import { toast } from "sonner"
-import { canAdd, type UserRole } from "@/lib/role-permissions"
+import { canAdd, canEdit, canDelete, type UserRole } from "@/lib/role-permissions"
 import { AnimatedCounter } from "@/components/animated-counter"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
@@ -39,9 +39,12 @@ export default function InventoryPage() {
   const [statusFilter, setStatusFilter] = useState("all")
   const [sortBy, setSortBy] = useState<"name" | "qty" | "price">("name")
   const [open, setOpen] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
+  const [selectedItem, setSelectedItem] = useState<any>(null)
 
   // Controlled form state
   const [formCategory, setFormCategory] = useState("")
+  const [formStatus, setFormStatus] = useState("in_stock")
 
   const filtered = inventory?.filter((item: Record<string, string>) => {
     const matchesSearch = `${item.item_name} ${item.supplier} ${item.category}`.toLowerCase().includes(search.toLowerCase())
@@ -60,6 +63,11 @@ export default function InventoryPage() {
   const totalValue = inventory?.reduce((sum: number, i: { quantity: number; unit_price: number }) =>
     sum + (Number(i.quantity) * Number(i.unit_price || 0)), 0) || 0
 
+  function resetForm() {
+    setFormCategory(""); setFormStatus("in_stock")
+    setSelectedItem(null)
+  }
+
   async function handleAdd(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const form = new FormData(e.currentTarget)
@@ -72,6 +80,7 @@ export default function InventoryPage() {
       unit_price: form.get("unit_price") ? Number(form.get("unit_price")) : null,
       supplier: form.get("supplier"),
       expiry_date: form.get("expiry_date") || null,
+      status: "in_stock",
     }
     if (!body.item_name || !body.category) {
       toast.error("Please fill in item name and category")
@@ -82,11 +91,60 @@ export default function InventoryPage() {
       toast.success("Inventory item added successfully")
       mutate()
       setOpen(false)
-      setFormCategory("")
+      resetForm()
     } else {
       const err = await res.json().catch(() => ({}))
       toast.error(err.error || "Failed to add inventory item")
     }
+  }
+
+  async function handleEdit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const form = new FormData(e.currentTarget)
+    const body = {
+      item_name: form.get("item_name"),
+      category: formCategory,
+      quantity: Number(form.get("quantity") || 0),
+      unit: form.get("unit"),
+      min_stock_level: Number(form.get("min_stock_level") || 10),
+      unit_price: form.get("unit_price") ? Number(form.get("unit_price")) : null,
+      supplier: form.get("supplier"),
+      expiry_date: form.get("expiry_date") || null,
+      status: formStatus,
+    }
+    const res = await fetch(`/api/inventory?id=${selectedItem.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    })
+    if (res.ok) {
+      toast.success("Inventory item updated successfully")
+      mutate()
+      setEditOpen(false)
+      resetForm()
+    } else {
+      const err = await res.json().catch(() => ({}))
+      toast.error(err.error || "Failed to update item")
+    }
+  }
+
+  async function handleDelete(id: number) {
+    if (!confirm("Are you sure you want to delete this inventory item?")) return
+    const res = await fetch(`/api/inventory?id=${id}`, { method: "DELETE" })
+    if (res.ok) {
+      toast.success("Inventory item deleted successfully")
+      mutate()
+    } else {
+      const err = await res.json().catch(() => ({}))
+      toast.error(err.error || "Failed to delete item")
+    }
+  }
+
+  function openEdit(item: any) {
+    setSelectedItem(item)
+    setFormCategory(item.category)
+    setFormStatus(item.status)
+    setEditOpen(true)
   }
 
   return (
@@ -214,13 +272,16 @@ export default function InventoryPage() {
                 <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Supplier</th>
                 <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Expiry</th>
                 <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Status</th>
+                {(canEdit(userRole, "inventory") || canDelete(userRole, "inventory")) && (
+                  <th className="px-4 py-3.5 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Actions</th>
+                )}
               </tr>
             </thead>
             <tbody>
-              {filtered?.map((item: Record<string, string | number | null>) => {
+              {filtered?.map((item: Record<string, string | number | null>, index: number) => {
                 const cfg = statusConfig[item.status as string] || statusConfig.in_stock
                 return (
-                  <tr key={item.id} className="border-b border-border/50 transition-colors last:border-0 hover:bg-muted/30">
+                  <tr key={item.id} className="animate-row-enter border-b border-border/50 transition-colors last:border-0 hover:bg-muted/30" style={{ animationDelay: `${index * 40}ms` }}>
                     <td className="px-4 py-3 font-medium text-foreground">{item.item_name}</td>
                     <td className="px-4 py-3">
                       <Badge variant="secondary" className={categoryColors[item.category as string] || ""}>{item.category}</Badge>
@@ -240,11 +301,72 @@ export default function InventoryPage() {
                         {(item.status as string).replace(/_/g, " ")}
                       </Badge>
                     </td>
+                    {(canEdit(userRole, "inventory") || canDelete(userRole, "inventory")) && (
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex justify-end gap-2">
+                          {canEdit(userRole, "inventory") && (
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => openEdit(item)}>
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {canDelete(userRole, "inventory") && (
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(item.id as number)}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 )
               })}
             </tbody>
           </table>
+
+          <Dialog open={editOpen} onOpenChange={(v) => { setEditOpen(v); if (!v) resetForm() }}>
+            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+              <DialogHeader><DialogTitle>Edit Inventory Item</DialogTitle></DialogHeader>
+              <form onSubmit={handleEdit} className="grid gap-4 pt-4">
+                <div className="space-y-2"><Label>Item Name *</Label><Input name="item_name" defaultValue={selectedItem?.item_name} required /></div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Category *</Label>
+                    <Select value={formCategory} onValueChange={setFormCategory}>
+                      <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Medicine">Medicine</SelectItem>
+                        <SelectItem value="Equipment">Equipment</SelectItem>
+                        <SelectItem value="Supplies">Supplies</SelectItem>
+                        <SelectItem value="PPE">PPE</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2"><Label>Unit</Label><Input name="unit" defaultValue={selectedItem?.unit} /></div>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2"><Label>Quantity *</Label><Input name="quantity" type="number" defaultValue={selectedItem?.quantity} required /></div>
+                  <div className="space-y-2"><Label>Min Stock</Label><Input name="min_stock_level" type="number" defaultValue={selectedItem?.min_stock_level} /></div>
+                  <div className="space-y-2"><Label>Unit Price (₹)</Label><Input name="unit_price" type="number" step="0.01" defaultValue={selectedItem?.unit_price} /></div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label>Supplier</Label><Input name="supplier" defaultValue={selectedItem?.supplier} /></div>
+                  <div className="space-y-2">
+                    <Label>Status</Label>
+                    <Select value={formStatus} onValueChange={setFormStatus}>
+                      <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="in_stock">In Stock</SelectItem>
+                        <SelectItem value="low_stock">Low Stock</SelectItem>
+                        <SelectItem value="out_of_stock">Out of Stock</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-2"><Label>Expiry Date</Label><Input name="expiry_date" type="date" defaultValue={selectedItem?.expiry_date} /></div>
+                <Button type="submit" className="w-full">Update Item</Button>
+              </form>
+            </DialogContent>
+          </Dialog>
         </div>
       )}
     </div>

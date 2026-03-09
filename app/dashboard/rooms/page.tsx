@@ -8,12 +8,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { BedDouble, DoorOpen, Plus, Search } from "lucide-react"
+import { BedDouble, DoorOpen, Plus, Search, Edit, Trash2 } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
 import { useState } from "react"
 import { useSession } from "next-auth/react"
 import { toast } from "sonner"
-import { canAdd, type UserRole } from "@/lib/role-permissions"
+import { canAdd, canEdit, canDelete, type UserRole } from "@/lib/role-permissions"
 import { AnimatedCounter } from "@/components/animated-counter"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
@@ -40,9 +40,12 @@ export default function RoomsPage() {
   const [statusFilter, setStatusFilter] = useState("all")
   const [typeFilter, setTypeFilter] = useState("all")
   const [open, setOpen] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
+  const [selectedRoom, setSelectedRoom] = useState<any>(null)
 
   // Controlled form state
   const [formType, setFormType] = useState("General")
+  const [formStatus, setFormStatus] = useState("available")
 
   const filtered = rooms?.filter((r: Record<string, string>) => {
     const matchesSearch = `Room ${r.room_number} ${r.room_type} Floor ${r.floor}`.toLowerCase().includes(search.toLowerCase())
@@ -54,6 +57,11 @@ export default function RoomsPage() {
   const totalBeds = rooms?.reduce((sum: number, r: { beds_total: number }) => sum + Number(r.beds_total), 0) || 0
   const occupiedBeds = rooms?.reduce((sum: number, r: { beds_occupied: number }) => sum + Number(r.beds_occupied), 0) || 0
   const availableRooms = rooms?.filter((r: { status: string }) => r.status === "available").length || 0
+
+  function resetForm() {
+    setFormType("General"); setFormStatus("available")
+    setSelectedRoom(null)
+  }
 
   async function handleAdd(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -76,11 +84,57 @@ export default function RoomsPage() {
       toast.success("Room added successfully")
       mutate()
       setOpen(false)
-      setFormType("General")
+      resetForm()
     } else {
       const err = await res.json().catch(() => ({}))
       toast.error(err.error || "Failed to add room")
     }
+  }
+
+  async function handleEdit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const form = new FormData(e.currentTarget)
+    const body = {
+      room_number: form.get("room_number"),
+      room_type: formType,
+      floor: Number(form.get("floor") || 1),
+      beds_total: Number(form.get("beds_total") || 1),
+      daily_rate: Number(form.get("daily_rate") || 0),
+      status: formStatus,
+    }
+    const res = await fetch(`/api/rooms?id=${selectedRoom.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    })
+    if (res.ok) {
+      toast.success("Room updated successfully")
+      mutate()
+      setEditOpen(false)
+      resetForm()
+    } else {
+      const err = await res.json().catch(() => ({}))
+      toast.error(err.error || "Failed to update room")
+    }
+  }
+
+  async function handleDelete(id: number) {
+    if (!confirm("Are you sure? This will delete the room record.")) return
+    const res = await fetch(`/api/rooms?id=${id}`, { method: "DELETE" })
+    if (res.ok) {
+      toast.success("Room deleted successfully")
+      mutate()
+    } else {
+      const err = await res.json().catch(() => ({}))
+      toast.error(err.error || "Failed to delete room")
+    }
+  }
+
+  function openEdit(room: any) {
+    setSelectedRoom(room)
+    setFormType(room.room_type)
+    setFormStatus(room.status)
+    setEditOpen(true)
   }
 
   return (
@@ -155,7 +209,7 @@ export default function RoomsPage() {
             </SelectContent>
           </Select>
         </div>
-        {canAdd(userRole, "rooms") && <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setFormType("General") }}>
+        {canAdd(userRole, "rooms") && <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm() }}>
           <DialogTrigger asChild>
             <Button className="gap-2 shadow-lg shadow-primary/20"><Plus className="h-4 w-4" />Add Room</Button>
           </DialogTrigger>
@@ -217,7 +271,7 @@ export default function RoomsPage() {
                 className="animate-fade-in group border-border/50 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/5"
                 style={{ animationDelay: `${index * 60}ms` }}
               >
-                <CardHeader className="pb-3">
+                <CardHeader className="pb-3 px-6 pt-6">
                   <div className="flex items-start justify-between">
                     <div>
                       <CardTitle className="text-lg font-bold text-foreground">Room {room.room_number}</CardTitle>
@@ -227,8 +281,20 @@ export default function RoomsPage() {
                       {room.room_type}
                     </Badge>
                   </div>
+                  <div className="absolute right-2 top-11 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                    {canEdit(userRole, "rooms") && (
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary" onClick={() => openEdit(room)}>
+                        <Edit className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                    {canDelete(userRole, "rooms") && (
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(room.id as number)}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
                 </CardHeader>
-                <CardContent className="space-y-3">
+                <CardContent className="space-y-3 px-6 pb-6">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Beds</span>
                     <span className="font-bold text-foreground">{room.beds_occupied}/{room.beds_total}</span>
@@ -246,6 +312,47 @@ export default function RoomsPage() {
           })}
         </div>
       )}
+
+      <Dialog open={editOpen} onOpenChange={(v) => { setEditOpen(v); if (!v) resetForm() }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader><DialogTitle>Edit Room Details</DialogTitle></DialogHeader>
+          <form onSubmit={handleEdit} className="grid gap-4 pt-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2"><Label>Room Number *</Label><Input name="room_number" defaultValue={selectedRoom?.room_number} required className="border-border/50" /></div>
+              <div className="space-y-2">
+                <Label>Room Type</Label>
+                <Select value={formType} onValueChange={setFormType}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="General">General</SelectItem>
+                    <SelectItem value="ICU">ICU</SelectItem>
+                    <SelectItem value="Private">Private</SelectItem>
+                    <SelectItem value="Semi-Private">Semi-Private</SelectItem>
+                    <SelectItem value="Emergency">Emergency</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2"><Label>Floor</Label><Input name="floor" type="number" defaultValue={selectedRoom?.floor} className="border-border/50" /></div>
+              <div className="space-y-2"><Label>Total Beds</Label><Input name="beds_total" type="number" defaultValue={selectedRoom?.beds_total} className="border-border/50" /></div>
+              <div className="space-y-2"><Label>Daily Rate (₹)</Label><Input name="daily_rate" type="number" step="0.01" defaultValue={selectedRoom?.daily_rate} className="border-border/50" /></div>
+            </div>
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Select value={formStatus} onValueChange={setFormStatus}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="available">Available</SelectItem>
+                  <SelectItem value="occupied">Occupied</SelectItem>
+                  <SelectItem value="maintenance">Maintenance</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button type="submit" className="w-full shadow-lg shadow-primary/20">Update Room</Button>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

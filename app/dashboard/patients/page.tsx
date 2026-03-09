@@ -9,11 +9,11 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
-import { Plus, Search, Activity, ArrowUpDown } from "lucide-react"
+import { Plus, Search, Activity, ArrowUpDown, Edit, Trash2 } from "lucide-react"
 import { useState } from "react"
 import { useSession } from "next-auth/react"
 import { toast } from "sonner"
-import { canAdd, type UserRole } from "@/lib/role-permissions"
+import { canAdd, canEdit, canDelete, type UserRole } from "@/lib/role-permissions"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -36,6 +36,8 @@ export default function PatientsPage() {
   const [bloodFilter, setBloodFilter] = useState("all")
   const [sortBy, setSortBy] = useState<"name" | "date">("name")
   const [open, setOpen] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
+  const [selectedPatient, setSelectedPatient] = useState<any>(null)
 
   // Controlled form state for Selects
   const [formGender, setFormGender] = useState("")
@@ -50,7 +52,10 @@ export default function PatientsPage() {
     return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
   })
 
-  function resetForm() { setFormGender(""); setFormBlood("") }
+  function resetForm() {
+    setFormGender(""); setFormBlood("")
+    setSelectedPatient(null)
+  }
 
   async function handleAdd(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -82,6 +87,57 @@ export default function PatientsPage() {
       const err = await res.json().catch(() => ({}))
       toast.error(err.error || "Failed to register patient")
     }
+  }
+
+  async function handleEdit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const form = new FormData(e.currentTarget)
+    const body = {
+      first_name: form.get("first_name"),
+      last_name: form.get("last_name"),
+      email: form.get("email"),
+      phone: form.get("phone"),
+      date_of_birth: form.get("date_of_birth"),
+      gender: formGender,
+      blood_group: formBlood,
+      address: form.get("address"),
+      emergency_contact: form.get("emergency_contact"),
+      emergency_phone: form.get("emergency_phone"),
+      insurance_id: form.get("insurance_id"),
+    }
+    const res = await fetch(`/api/patients?id=${selectedPatient.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    })
+    if (res.ok) {
+      toast.success("Patient details updated successfully")
+      mutate()
+      setEditOpen(false)
+      resetForm()
+    } else {
+      const err = await res.json().catch(() => ({}))
+      toast.error(err.error || "Failed to update patient")
+    }
+  }
+
+  async function handleDelete(id: number) {
+    if (!confirm("Are you sure you want to delete this patient record?")) return
+    const res = await fetch(`/api/patients?id=${id}`, { method: "DELETE" })
+    if (res.ok) {
+      toast.success("Patient record deleted successfully")
+      mutate()
+    } else {
+      const err = await res.json().catch(() => ({}))
+      toast.error(err.error || "Failed to delete patient")
+    }
+  }
+
+  function openEdit(p: any) {
+    setSelectedPatient(p)
+    setFormGender(p.gender || "")
+    setFormBlood(p.blood_group || "")
+    setEditOpen(true)
   }
 
   return (
@@ -176,11 +232,14 @@ export default function PatientsPage() {
                 <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Blood</th>
                 <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Insurance</th>
                 <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Emergency</th>
+                {(canEdit(userRole, "patients") || canDelete(userRole, "patients")) && (
+                  <th className="px-4 py-3.5 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Actions</th>
+                )}
               </tr>
             </thead>
             <tbody>
-              {filtered?.map((p: Record<string, string | number | null>) => (
-                <tr key={p.id} className="border-b border-border/50 transition-colors last:border-0 hover:bg-muted/30">
+              {filtered?.map((p: Record<string, string | number | null>, index: number) => (
+                <tr key={p.id} className="animate-row-enter border-b border-border/50 transition-colors last:border-0 hover:bg-muted/30" style={{ animationDelay: `${index * 40}ms` }}>
                   <td className="px-4 py-3 font-medium text-foreground">{p.first_name} {p.last_name}</td>
                   <td className="px-4 py-3">
                     <div className="text-foreground">{p.email}</div>
@@ -200,10 +259,73 @@ export default function PatientsPage() {
                     <div className="text-foreground text-xs">{p.emergency_contact || "-"}</div>
                     <div className="text-xs text-muted-foreground">{p.emergency_phone}</div>
                   </td>
+                  {(canEdit(userRole, "patients") || canDelete(userRole, "patients")) && (
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex justify-end gap-2">
+                        {canEdit(userRole, "patients") && (
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => openEdit(p)}>
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {canDelete(userRole, "patients") && (
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(p.id as number)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
           </table>
+
+          <Dialog open={editOpen} onOpenChange={(v) => { setEditOpen(v); if (!v) resetForm() }}>
+            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+              <DialogHeader><DialogTitle>Edit Patient Record</DialogTitle></DialogHeader>
+              <form onSubmit={handleEdit} className="grid gap-4 pt-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label>First Name *</Label><Input name="first_name" defaultValue={selectedPatient?.first_name} required /></div>
+                  <div className="space-y-2"><Label>Last Name *</Label><Input name="last_name" defaultValue={selectedPatient?.last_name} required /></div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label>Email</Label><Input name="email" type="email" defaultValue={selectedPatient?.email} /></div>
+                  <div className="space-y-2"><Label>Phone</Label><Input name="phone" defaultValue={selectedPatient?.phone} /></div>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2"><Label>Date of Birth</Label><Input name="date_of_birth" type="date" defaultValue={selectedPatient?.date_of_birth} /></div>
+                  <div className="space-y-2">
+                    <Label>Gender</Label>
+                    <Select value={formGender} onValueChange={setFormGender}>
+                      <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Male">Male</SelectItem>
+                        <SelectItem value="Female">Female</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Blood Group</Label>
+                    <Select value={formBlood} onValueChange={setFormBlood}>
+                      <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                      <SelectContent>
+                        {["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"].map(bg => (
+                          <SelectItem key={bg} value={bg}>{bg}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-2"><Label>Address</Label><Textarea name="address" rows={2} defaultValue={selectedPatient?.address} /></div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label>Emergency Contact</Label><Input name="emergency_contact" defaultValue={selectedPatient?.emergency_contact} /></div>
+                  <div className="space-y-2"><Label>Emergency Phone</Label><Input name="emergency_phone" defaultValue={selectedPatient?.emergency_phone} /></div>
+                </div>
+                <div className="space-y-2"><Label>Insurance ID</Label><Input name="insurance_id" defaultValue={selectedPatient?.insurance_id} /></div>
+                <Button type="submit" className="w-full">Update Patient Record</Button>
+              </form>
+            </DialogContent>
+          </Dialog>
         </div>
       )}
     </div>
