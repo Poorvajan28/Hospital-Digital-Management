@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getTable, insert, update, remove } from "@/lib/db"
+import { getServerSession } from "next-auth/next"
+import { authOptions } from "@/app/api/auth/[...nextauth]/route"
 
 export async function GET() {
+  const session = await getServerSession(authOptions)
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
   try {
     const donors = await getTable("blood_donors", {
       order: "created_at.desc",
@@ -14,6 +19,11 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session || (session.user.role !== "admin" && session.user.role !== "nurse")) {
+    return NextResponse.json({ error: "Forbidden: Staff only" }, { status: 403 })
+  }
+
   try {
     const body = await request.json()
     const newDonor = await insert("blood_donors", {
@@ -37,6 +47,11 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session || (session.user.role !== "admin" && session.user.role !== "nurse")) {
+    return NextResponse.json({ error: "Forbidden: Staff only" }, { status: 403 })
+  }
+
   try {
     const { searchParams } = new URL(request.url)
     const id = searchParams.get("id")
@@ -53,6 +68,11 @@ export async function PUT(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session || session.user.role !== "admin") {
+    return NextResponse.json({ error: "Forbidden: Admin only" }, { status: 403 })
+  }
+
   try {
     const { searchParams } = new URL(request.url)
     const id = searchParams.get("id")

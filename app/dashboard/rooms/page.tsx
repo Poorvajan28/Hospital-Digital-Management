@@ -16,11 +16,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { BedDouble, DoorOpen, Plus, Search, Edit, Trash2, MoreVertical, Power, Settings, CheckCircle, XCircle, AlertTriangle } from "lucide-react"
+import { BedDouble, DoorOpen, Plus, Search, Edit, Trash2, MoreVertical, Power, Settings, CheckCircle, XCircle, AlertTriangle, ExternalLink } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
 import { useState } from "react"
 import { useSession } from "next-auth/react"
 import { toast } from "sonner"
+import { useRouter } from "next/navigation"
 import { canAdd, canEdit, canDelete, type UserRole } from "@/lib/role-permissions"
 import { AnimatedCounter } from "@/components/animated-counter"
 
@@ -42,6 +43,7 @@ const typeColors: Record<string, string> = {
 
 export default function RoomsPage() {
   const { data: session } = useSession()
+  const router = useRouter()
   const userRole = (session?.user as { role?: string })?.role as UserRole | undefined
   const { data: rooms, mutate } = useSWR("/api/rooms", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
   const [search, setSearch] = useState("")
@@ -332,8 +334,17 @@ export default function RoomsPage() {
                 style={{ animationDelay: `${index * 60}ms` }}
               >
                 <CardHeader className="pb-3 px-6 pt-6 flex-row items-start justify-between space-y-0">
-                  <div>
-                    <CardTitle className="text-lg font-bold text-foreground">Room {room.room_number}</CardTitle>
+                  <div className="flex-1">
+                    <CardTitle className="text-lg font-bold text-foreground flex items-center gap-2">
+                      Room {room.room_number}
+                      <button
+                        onClick={() => router.push(`/dashboard/beds?search=${room.room_number}`)}
+                        className="h-6 w-6 rounded-full flex items-center justify-center hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
+                        title="View Bed Management"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                      </button>
+                    </CardTitle>
                     <p className="mt-0.5 text-xs text-muted-foreground font-medium uppercase tracking-wider">Floor {room.floor}</p>
                   </div>
                   {(canEdit(userRole, "rooms") || canDelete(userRole, "rooms")) && (

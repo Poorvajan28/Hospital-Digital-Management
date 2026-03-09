@@ -20,7 +20,9 @@ import { Plus, Search, CalendarDays, ArrowUpDown, Edit, Trash2, MoreVertical, Ch
 import { useState } from "react"
 import { useSession } from "next-auth/react"
 import { toast } from "sonner"
+import { useSearchParams, useRouter } from "next/navigation"
 import { canAdd, canEdit, canDelete, type UserRole } from "@/lib/role-permissions"
+import { maskPII } from "@/lib/privacy"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -40,12 +42,18 @@ const typeColors: Record<string, string> = {
 
 export default function AppointmentsPage() {
   const { data: session } = useSession()
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const patientIdParam = searchParams.get("patientId")
+  const doctorIdParam = searchParams.get("doctorId")
+  const searchParam = searchParams.get("search")
+
   const userRole = (session?.user as { role?: string })?.role as UserRole | undefined
   const { data: appointments, mutate } = useSWR("/api/appointments", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
   const { data: patients } = useSWR("/api/patients", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
   const { data: staff } = useSWR("/api/staff", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
   const { data: departments } = useSWR("/api/departments", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
-  const [search, setSearch] = useState("")
+  const [search, setSearch] = useState(searchParam || "")
   const [statusFilter, setStatusFilter] = useState("all")
   const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest")
   const [open, setOpen] = useState(false)
@@ -61,11 +69,13 @@ export default function AppointmentsPage() {
 
   const doctors = staff?.filter((s: Record<string, string>) => s.role === "physician" || s.role === "Doctor")
 
-  const filtered = appointments?.filter((a: Record<string, string>) => {
+  const filtered = appointments?.filter((a: Record<string, string | number>) => {
     const matchesSearch =
       `${a.patient_name || ""} ${a.doctor_name || ""} ${a.department_name || ""}`.toLowerCase().includes(search.toLowerCase())
     const matchesStatus = statusFilter === "all" || a.status === statusFilter
-    return matchesSearch && matchesStatus
+    const matchesPatientId = !patientIdParam || String(a.patient_id) === patientIdParam
+    const matchesDoctorId = !doctorIdParam || String(a.doctor_id) === doctorIdParam
+    return matchesSearch && matchesStatus && matchesPatientId && matchesDoctorId
   })?.sort((a: Record<string, string>, b: Record<string, string>) => {
     const dateA = new Date(`${a.appointment_date} ${a.appointment_time}`).getTime()
     const dateB = new Date(`${b.appointment_date} ${b.appointment_time}`).getTime()
@@ -324,8 +334,24 @@ export default function AppointmentsPage() {
             <tbody>
               {filtered?.map((a: Record<string, string | number>, index: number) => (
                 <tr key={a.id} className="animate-row-enter border-b border-border/50 transition-colors last:border-0 hover:bg-muted/30" style={{ animationDelay: `${index * 40}ms` }}>
-                  <td className="px-4 py-3 font-medium text-foreground">{a.patient_name || "—"}</td>
-                  <td className="px-4 py-3 text-foreground">{a.doctor_name ? `Dr. ${a.doctor_name}` : "—"}</td>
+                  <td className="px-4 py-3 font-medium text-foreground">
+                    <button
+                      onClick={() => router.push(`/dashboard/patients?search=${a.patient_name}`)}
+                      className="hover:underline underline-offset-4 decoration-primary/30"
+                    >
+                      {maskPII(a.patient_name as string, userRole, "name")}
+                    </button>
+                  </td>
+                  <td className="px-4 py-3 text-foreground">
+                    {a.doctor_name ? (
+                      <button
+                        onClick={() => router.push(`/dashboard/staff?search=${a.doctor_name}`)}
+                        className="hover:underline underline-offset-2"
+                      >
+                        Dr. {a.doctor_name}
+                      </button>
+                    ) : "—"}
+                  </td>
                   <td className="px-4 py-3 text-muted-foreground">{a.department_name || "—"}</td>
                   <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
                     {a.appointment_date ? new Date(a.appointment_date as string).toLocaleDateString("en-IN") : "—"} {(a.appointment_time as string)?.slice(0, 5)}

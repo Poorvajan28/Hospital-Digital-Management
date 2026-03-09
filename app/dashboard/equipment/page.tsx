@@ -11,6 +11,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
     Stethoscope,
     Search,
     Plus,
@@ -19,11 +27,14 @@ import {
     AlertTriangle,
     Clock,
     Building,
+    MoreVertical,
+    Edit,
+    Trash2,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useSession } from "next-auth/react"
 import { toast } from "sonner"
-import { canAdd, type UserRole } from "@/lib/role-permissions"
+import { canAdd, canEdit, canDelete, type UserRole } from "@/lib/role-permissions"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -103,17 +114,23 @@ export default function EquipmentManagementPage() {
     }
 
     async function handleStatusChange(id: number, newStatus: string) {
-        const res = await fetch(`/api/inventory?id=${id}`, {
+        const promise = fetch(`/api/inventory?id=${id}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ status: newStatus })
+        }).then(async (res) => {
+            if (!res.ok) throw new Error("Update failed")
+            return res.json()
         })
-        if (res.ok) {
-            toast.success("Status updated successfully")
-            mutate()
-        } else {
-            toast.error("Failed to update status")
-        }
+
+        toast.promise(promise, {
+            loading: "Updating equipment status...",
+            success: () => {
+                mutate()
+                return `Equipment status updated to ${newStatus.replace('_', ' ')}`
+            },
+            error: "Failed to update equipment status",
+        })
     }
 
     return (
@@ -199,12 +216,12 @@ export default function EquipmentManagementPage() {
                     </Select>
                     {canAdd(userRole, "equipment") && <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setFormCategory("") }}>
                         <DialogTrigger asChild>
-                            <Button>
+                            <Button className="btn-premium">
                                 <Plus className="mr-2 h-4 w-4" />
                                 Add Equipment
                             </Button>
                         </DialogTrigger>
-                        <DialogContent className="sm:max-w-lg">
+                        <DialogContent className="sm:max-w-lg glass-dialog">
                             <DialogHeader><DialogTitle>Add New Equipment</DialogTitle></DialogHeader>
                             <form onSubmit={handleAdd} className="grid gap-4 pt-4">
                                 <div className="space-y-2"><Label>Equipment Name *</Label><Input name="item_name" required /></div>
@@ -227,8 +244,8 @@ export default function EquipmentManagementPage() {
                                     <div className="space-y-2"><Label>Unit Price (₹)</Label><Input name="unit_price" type="number" step="0.01" /></div>
                                     <div className="space-y-2"><Label>Min Stock Level</Label><Input name="min_stock_level" type="number" defaultValue="1" /></div>
                                 </div>
-                                <div className="space-y-2"><Label>Supplier</Label><Input name="supplier" /></div>
-                                <Button type="submit" className="w-full">Add Equipment</Button>
+                                <div className="space-y-2"><Label>Supplier</Label><Input name="supplier" className="border-border/50" /></div>
+                                <Button type="submit" className="w-full btn-premium">Add Equipment</Button>
                             </form>
                         </DialogContent>
                     </Dialog>}
@@ -258,7 +275,7 @@ export default function EquipmentManagementPage() {
                                     .filter((eq: { status: string }) => tabValue === 'all' || eq.status === tabValue)
                                     .map((eq: Record<string, string | number | null>, index: number) => (
                                         <Card key={eq.id} className={cn(
-                                            "animate-fade-in transition-all hover:shadow-md",
+                                            "animate-fade-in transition-all hover:shadow-md glass-card",
                                             eq.status === 'out_of_stock' && "border-rose-200",
                                             eq.status === 'low_stock' && "border-amber-200"
                                         )} style={{ animationDelay: `${index * 50}ms` }}>
@@ -270,73 +287,102 @@ export default function EquipmentManagementPage() {
                                                         </div>
                                                         <div>
                                                             <CardTitle className="text-base">{eq.item_name}</CardTitle>
-                                                            <CardDescription className="flex items-center gap-1">
+                                                            <p className="flex items-center gap-1 text-xs text-muted-foreground font-medium uppercase tracking-wider">
                                                                 <Building className="h-3 w-3" />
                                                                 {eq.category}
-                                                            </CardDescription>
+                                                            </p>
                                                         </div>
                                                     </div>
-                                                    <Badge variant="outline" className={getStatusColor(eq.status as string)}>
-                                                        {statusLabel(eq.status as string)}
-                                                    </Badge>
+                                                    <div className="flex items-center gap-2">
+                                                      <Badge variant="outline" className={cn("font-bold px-2.5", getStatusColor(eq.status as string))}>
+                                                          {statusLabel(eq.status as string)}
+                                                      </Badge>
+                                                      {canEdit(userRole, "equipment") && (
+                                                        <DropdownMenu>
+                                                          <DropdownMenuTrigger asChild>
+                                                            <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted/50">
+                                                              <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                                                            </Button>
+                                                          </DropdownMenuTrigger>
+                                                          <DropdownMenuContent align="end" className="w-48 glass-dialog">
+                                                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                                            <DropdownMenuSeparator />
+                                                            <DropdownMenuItem onClick={() => handleStatusChange(eq.id as number, 'in_stock')} className="cursor-pointer">
+                                                              <CheckCircle2 className="mr-2 h-4 w-4 text-emerald-600" /> Mark Available
+                                                            </DropdownMenuItem>
+                                                            <DropdownMenuItem onClick={() => handleStatusChange(eq.id as number, 'low_stock')} className="cursor-pointer">
+                                                              <Clock className="mr-2 h-4 w-4 text-amber-600" /> Mark Maintenance
+                                                            </DropdownMenuItem>
+                                                            <DropdownMenuItem onClick={() => handleStatusChange(eq.id as number, 'out_of_stock')} className="cursor-pointer">
+                                                              <AlertTriangle className="mr-2 h-4 w-4 text-rose-600" /> Mark Out of Order
+                                                            </DropdownMenuItem>
+                                                            <DropdownMenuSeparator />
+                                                            <DropdownMenuItem className="cursor-pointer text-destructive focus:text-destructive">
+                                                              <Trash2 className="mr-2 h-4 w-4" /> Delete Equipment
+                                                            </DropdownMenuItem>
+                                                          </DropdownMenuContent>
+                                                        </DropdownMenu>
+                                                      )}
+                                                    </div>
                                                 </div>
                                             </CardHeader>
-                                            <CardContent className="pt-0">
-                                                <div className="space-y-2 text-sm">
-                                                    <div className="flex justify-between">
-                                                        <span className="text-muted-foreground">Quantity:</span>
-                                                        <span className="font-medium">{eq.quantity} {eq.unit}</span>
-                                                    </div>
-                                                    <div className="flex justify-between">
-                                                        <span className="text-muted-foreground">Min Stock:</span>
-                                                        <span>{eq.min_stock_level}</span>
-                                                    </div>
-                                                    {eq.supplier && (
-                                                        <div className="flex justify-between">
-                                                            <span className="text-muted-foreground">Supplier:</span>
-                                                            <span>{eq.supplier}</span>
-                                                        </div>
-                                                    )}
-                                                    {eq.unit_price && (
-                                                        <div className="flex justify-between">
-                                                            <span className="text-muted-foreground">Unit Price:</span>
-                                                            <span>₹{Number(eq.unit_price).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
-                                                        </div>
-                                                    )}
-                                                    {eq.expiry_date && (
-                                                        <div className="flex justify-between">
-                                                            <span className="text-muted-foreground">Expiry:</span>
-                                                            <span className={cn(
-                                                                new Date(eq.expiry_date as string) < new Date() && "text-rose-600 font-medium"
-                                                            )}>{new Date(eq.expiry_date as string).toLocaleDateString()}</span>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                <div className="mt-4 flex gap-2">
-                                                    {eq.status === 'in_stock' && (
-                                                        <Button size="sm" variant="outline" className="flex-1" onClick={() => handleStatusChange(eq.id as number, 'low_stock')}>
-                                                            Mark Low Stock
-                                                        </Button>
-                                                    )}
-                                                    {eq.status === 'low_stock' && (
-                                                        <Button size="sm" className="flex-1" onClick={() => handleStatusChange(eq.id as number, 'in_stock')}>
-                                                            Restock
-                                                        </Button>
-                                                    )}
-                                                    {eq.status === 'out_of_stock' && (
-                                                        <Button size="sm" variant="outline" className="flex-1" onClick={() => handleStatusChange(eq.id as number, 'in_stock')}>
-                                                            Mark Available
-                                                        </Button>
-                                                    )}
-                                                </div>
-                                            </CardContent>
-                                        </Card>
-                                    ))}
-                            </div>
+            <CardContent className="pt-0">
+                <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                        <span className="text-muted-foreground">Quantity:</span>
+                        <span className="font-medium">{eq.quantity} {eq.unit}</span>
+                    </div>
+                    <div className="flex justify-between">
+                        <span className="text-muted-foreground">Min Stock:</span>
+                        <span>{eq.min_stock_level}</span>
+                    </div>
+                    {eq.supplier && (
+                        <div className="flex justify-between">
+                            <span className="text-muted-foreground">Supplier:</span>
+                            <span>{eq.supplier}</span>
+                        </div>
+                    )}
+                    {eq.unit_price && (
+                        <div className="flex justify-between">
+                            <span className="text-muted-foreground">Unit Price:</span>
+                            <span>₹{Number(eq.unit_price).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                        </div>
+                    )}
+                    {eq.expiry_date && (
+                        <div className="flex justify-between">
+                            <span className="text-muted-foreground">Expiry:</span>
+                            <span className={cn(
+                                new Date(eq.expiry_date as string) < new Date() && "text-rose-600 font-medium"
+                            )}>{new Date(eq.expiry_date as string).toLocaleDateString()}</span>
+                        </div>
+                    )}
+                </div>
+                <div className="mt-4 flex gap-2">
+                    {eq.status === 'in_stock' && (
+                        <Button size="sm" variant="outline" className="flex-1" onClick={() => handleStatusChange(eq.id as number, 'low_stock')}>
+                            Mark Low Stock
+                        </Button>
+                    )}
+                    {eq.status === 'low_stock' && (
+                        <Button size="sm" className="flex-1" onClick={() => handleStatusChange(eq.id as number, 'in_stock')}>
+                            Restock
+                        </Button>
+                    )}
+                    {eq.status === 'out_of_stock' && (
+                        <Button size="sm" variant="outline" className="flex-1" onClick={() => handleStatusChange(eq.id as number, 'in_stock')}>
+                            Mark Available
+                        </Button>
+                    )}
+                </div>
+            </CardContent>
+        </Card>
+    ))
+}
+                            </div >
                         )}
-                    </TabsContent>
+                    </TabsContent >
                 ))}
-            </Tabs>
-        </div>
+            </Tabs >
+        </div >
     )
 }

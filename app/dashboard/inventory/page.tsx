@@ -22,6 +22,7 @@ import { useSession } from "next-auth/react"
 import { toast } from "sonner"
 import { canAdd, canEdit, canDelete, type UserRole } from "@/lib/role-permissions"
 import { AnimatedCounter } from "@/components/animated-counter"
+import { maskPII, canViewPII } from "@/lib/privacy"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -246,7 +247,7 @@ export default function InventoryPage() {
               <Package className="h-4 w-4 text-[#059669]" />
             </div>
           </CardHeader>
-          <CardContent><p className="text-3xl font-extrabold tracking-tight text-foreground"><AnimatedCounter value={totalValue} prefix="₹" /></p></CardContent>
+          <CardContent><p className="text-3xl font-extrabold tracking-tight text-foreground"><AnimatedCounter value={canViewPII(userRole) ? totalValue : 0} prefix="₹" /></p></CardContent>
         </Card>
       </div>
 
@@ -350,9 +351,9 @@ export default function InventoryPage() {
                     <td className="px-4 py-3 font-mono text-foreground">{item.quantity} {item.unit}</td>
                     <td className="px-4 py-3 font-mono text-muted-foreground">{item.min_stock_level}</td>
                     <td className="px-4 py-3 font-mono text-muted-foreground">
-                      {item.unit_price ? `₹${Number(item.unit_price).toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : "—"}
+                      {item.unit_price && canViewPII(userRole) ? `₹${Number(item.unit_price).toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : "—"}
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground">{item.supplier || "-"}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{canViewPII(userRole) ? (item.supplier || "-") : "Confidential"}</td>
                     <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
                       {item.expiry_date ? new Date(item.expiry_date as string).toLocaleDateString() : "-"}
                     </td>

@@ -236,7 +236,12 @@ export default function DepartmentsPage() {
                     <div className="flex items-center gap-2 text-sm bg-muted/30 p-2 rounded-lg">
                       <Users className="h-3.5 w-3.5 text-primary" />
                       <span className="text-muted-foreground font-medium">Head: </span>
-                      <span className="font-bold text-foreground">{dept.head_doctor}</span>
+                      <button
+                        onClick={() => router.push(`/dashboard/staff?search=${dept.head_doctor}`)}
+                        className="font-bold text-foreground hover:underline"
+                      >
+                        {dept.head_doctor}
+                      </button>
                     </div>
                   )}
                   {dept.phone && (
@@ -251,7 +256,11 @@ export default function DepartmentsPage() {
                     <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
                     <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-500">Operational</span>
                   </div>
-                  <Badge variant="secondary" className="gap-1 bg-primary/5 text-primary border-none font-bold">
+                  <Badge
+                    variant="secondary"
+                    className="gap-1 bg-primary/5 text-primary border-none font-bold hover:bg-primary/10 cursor-pointer"
+                    onClick={() => router.push(`/dashboard/staff?dept=${dept.id}`)}
+                  >
                     <Users className="h-3 w-3" />
                     {dept.staff_count} Staff
                   </Badge>

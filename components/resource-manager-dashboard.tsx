@@ -20,6 +20,9 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { AnimatedCounter } from "@/components/animated-counter"
+import { useSession } from "next-auth/react"
+import { maskPII } from "@/lib/privacy"
+import { type UserRole } from "@/lib/role-permissions"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -64,6 +67,8 @@ function getInventoryStatusColor(status: string) {
 }
 
 export function ResourceManagerDashboard() {
+    const { data: session } = useSession()
+    const userRole = (session?.user as { role?: string })?.role as UserRole | undefined
     const { data: rooms } = useSWR("/api/rooms", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
     const { data: bloodStock } = useSWR("/api/blood-stock", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
     const { data: staff } = useSWR("/api/staff", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
@@ -182,16 +187,31 @@ export function ResourceManagerDashboard() {
             </div>
 
             {/* Critical Alerts */}
-            {!isLoading && criticalBlood > 0 && (
-                <Card className="border-[#dc2626]/20 bg-[#dc2626]/5">
-                    <CardContent className="flex items-center gap-3 p-4">
-                        <AlertTriangle className="h-5 w-5 text-[#dc2626]" />
-                        <div>
-                            <p className="font-semibold text-[#dc2626]">Critical Blood Stock Alert</p>
-                            <p className="text-sm text-[#dc2626]/80">{criticalBlood} blood groups at critical level. Immediate donor recruitment required.</p>
-                        </div>
-                    </CardContent>
-                </Card>
+            {!isLoading && (criticalBlood > 0 || lowStockEquipment > 0) && (
+                <div className="grid gap-4 md:grid-cols-2">
+                    {criticalBlood > 0 && (
+                        <Card className="border-[#dc2626]/20 bg-[#dc2626]/5 animate-pulse">
+                            <CardContent className="flex items-center gap-3 p-4">
+                                <AlertTriangle className="h-5 w-5 text-[#dc2626]" />
+                                <div>
+                                    <p className="font-semibold text-[#dc2626]">Critical Blood Stock Alert</p>
+                                    <p className="text-sm text-[#dc2626]/80">{criticalBlood} blood groups at critical level. Immediate donor recruitment required.</p>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
+                    {lowStockEquipment > 0 && (
+                        <Card className="border-[#d97706]/20 bg-[#d97706]/5">
+                            <CardContent className="flex items-center gap-3 p-4">
+                                <Package className="h-5 w-5 text-[#d97706]" />
+                                <div>
+                                    <p className="font-semibold text-[#d97706]">Inventory Replenishment Needed</p>
+                                    <p className="text-sm text-[#d97706]/80">{lowStockEquipment} items are below minimum stock level. Review procurement orders.</p>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
+                </div>
             )}
 
             {/* Bed Allocation Section */}
@@ -308,7 +328,9 @@ export function ResourceManagerDashboard() {
                                         {(member.first_name as string)?.charAt(0)}{(member.last_name as string)?.charAt(0)}
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <p className="truncate font-medium text-foreground">{member.first_name} {member.last_name}</p>
+                                        <p className="truncate font-medium text-foreground">
+                                            {maskPII(`${member.first_name} ${member.last_name}`, userRole, "name")}
+                                        </p>
                                         <p className="truncate text-xs text-muted-foreground">{member.role} · {member.department_name || 'N/A'}</p>
                                     </div>
                                     <Badge variant="secondary" className={cn("shrink-0 text-xs", getStaffStatusColor(member.status as string))}>

@@ -1,8 +1,18 @@
 import { NextRequest, NextResponse } from "next/server"
 import { query, getTable, insert } from "@/lib/db"
 import { addRegisteredPatient } from "@/lib/registered-users"
+import { getServerSession } from "next-auth/next"
+import { authOptions } from "@/app/api/auth/[...nextauth]/route"
 
 export async function GET() {
+  const session = await getServerSession(authOptions)
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  
+  // Patients cannot view the list of all patients
+  if (session.user.role === "patient") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
+
   try {
     const patients = await getTable("patients", {
       select: "*",

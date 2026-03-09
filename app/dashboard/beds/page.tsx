@@ -6,10 +6,21 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { AnimatedCounter } from "@/components/animated-counter"
-import { BedDouble, Search, DoorOpen } from "lucide-react"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { BedDouble, Search, DoorOpen, MoreVertical, Edit, Trash2, Power, Settings, CheckCircle, XCircle } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { useState } from "react"
+import { useSession } from "next-auth/react"
+import { toast } from "sonner"
+import { canEdit, canDelete, type UserRole } from "@/lib/role-permissions"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -28,6 +39,8 @@ const typeColors: Record<string, string> = {
 }
 
 export default function BedManagementPage() {
+    const { data: session } = useSession()
+    const userRole = (session?.user as { role?: string })?.role as UserRole | undefined
     const { data: rooms, mutate } = useSWR("/api/rooms", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
     const [search, setSearch] = useState("")
     const [filterStatus, setFilterStatus] = useState<string>("all")
@@ -42,6 +55,26 @@ export default function BedManagementPage() {
         const matchesStatus = filterStatus === "all" || room.status === filterStatus
         return matchesSearch && matchesStatus
     })
+
+    async function handleStatusUpdate(id: number, newStatus: string) {
+        const promise = fetch(`/api/rooms?id=${id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status: newStatus })
+        }).then(async (res) => {
+            if (!res.ok) throw new Error("Update failed")
+            return res.json()
+        })
+
+        toast.promise(promise, {
+            loading: "Updating room status...",
+            success: () => {
+                mutate()
+                return `Room status updated to ${newStatus}`
+            },
+            error: "Failed to update room status",
+        })
+    }
 
     return (
         <div className="space-y-6">
@@ -129,28 +162,56 @@ export default function BedManagementPage() {
                         return (
                             <Card
                                 key={room.id}
-                                className="animate-fade-in group border-border/50 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/5"
+                                className="animate-fade-in group border-border/50 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/5 glass-card"
                                 style={{ animationDelay: `${index * 60}ms` }}
                             >
                                 <CardHeader className="pb-3">
                                     <div className="flex items-start justify-between">
                                         <div>
                                             <CardTitle className="text-lg font-bold text-foreground">Room {room.room_number}</CardTitle>
-                                            <p className="mt-0.5 text-xs text-muted-foreground">Floor {room.floor}</p>
+                                            <p className="mt-0.5 text-xs text-muted-foreground font-medium uppercase tracking-wider">Floor {room.floor}</p>
                                         </div>
-                                        <Badge variant="secondary" className={cn("font-semibold", typeColors[room.room_type as string] || "")}>
-                                            {room.room_type}
-                                        </Badge>
+                                        <div className="flex items-center gap-2">
+                                            <Badge variant="secondary" className={cn("font-bold", typeColors[room.room_type as string] || "")}>
+                                                {room.room_type}
+                                            </Badge>
+                                            {canEdit(userRole, "rooms") && (
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted/50">
+                                                            <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end" className="w-48 glass-dialog">
+                                                        <DropdownMenuLabel>Room Actions</DropdownMenuLabel>
+                                                        <DropdownMenuSeparator />
+                                                        <DropdownMenuItem onClick={() => handleStatusUpdate(room.id as number, "available")} className="cursor-pointer">
+                                                            <CheckCircle className="mr-2 h-4 w-4 text-emerald-600" /> Mark Available
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem onClick={() => handleStatusUpdate(room.id as number, "occupied")} className="cursor-pointer">
+                                                            <Power className="mr-2 h-4 w-4 text-blue-600" /> Mark Occupied
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem onClick={() => handleStatusUpdate(room.id as number, "maintenance")} className="cursor-pointer">
+                                                            <Settings className="mr-2 h-4 w-4 text-amber-600" /> Maintenance
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuSeparator />
+                                                        <DropdownMenuItem className="cursor-pointer text-destructive focus:text-destructive">
+                                                            <Trash2 className="mr-2 h-4 w-4" /> Delete Room
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            )}
+                                        </div>
                                     </div>
                                 </CardHeader>
                                 <CardContent className="space-y-3">
                                     <div className="flex items-center justify-between text-sm">
-                                        <span className="text-muted-foreground">Beds</span>
+                                        <span className="text-muted-foreground font-medium">Beds</span>
                                         <span className="font-bold text-foreground">{room.beds_occupied}/{room.beds_total}</span>
                                     </div>
                                     <Progress value={occupancy} className="h-2" />
                                     <div className="flex items-center justify-between">
-                                        <Badge variant="secondary" className={cn("font-semibold", statusColors[room.status as string] || "")}>
+                                        <Badge variant="secondary" className={cn("font-bold px-2.5 py-0.5", statusColors[room.status as string] || "")}>
                                             {room.status}
                                         </Badge>
                                         <span className="text-sm font-bold text-foreground">

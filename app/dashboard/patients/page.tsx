@@ -21,7 +21,9 @@ import { Plus, Search, Activity, ArrowUpDown, Edit, Trash2, MoreVertical, UserCi
 import { useState } from "react"
 import { useSession } from "next-auth/react"
 import { toast } from "sonner"
+import { useRouter } from "next/navigation"
 import { canAdd, canEdit, canDelete, type UserRole } from "@/lib/role-permissions"
+import { maskPII } from "@/lib/privacy"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -38,6 +40,7 @@ const bloodGroupColors: Record<string, string> = {
 
 export default function PatientsPage() {
   const { data: session } = useSession()
+  const router = useRouter()
   const userRole = (session?.user as { role?: string })?.role as UserRole | undefined
   const { data: patients, mutate } = useSWR("/api/patients", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
   const [search, setSearch] = useState("")
@@ -277,10 +280,17 @@ export default function PatientsPage() {
             <tbody>
               {filtered?.map((p: Record<string, string | number | null>, index: number) => (
                 <tr key={p.id} className="animate-row-enter border-b border-border/50 transition-colors last:border-0 hover:bg-muted/30" style={{ animationDelay: `${index * 40}ms` }}>
-                  <td className="px-4 py-3 font-medium text-foreground">{p.first_name} {p.last_name}</td>
+                  <td className="px-4 py-3 font-medium text-foreground">
+                    <button
+                      onClick={() => router.push(`/dashboard/medical-records?patientId=${p.id}`)}
+                      className="hover:text-primary hover:underline transition-all underline-offset-4 decoration-primary/30"
+                    >
+                      {p.first_name} {p.last_name}
+                    </button>
+                  </td>
                   <td className="px-4 py-3">
-                    <div className="text-foreground">{p.email}</div>
-                    <div className="text-xs text-muted-foreground">{p.phone}</div>
+                    <div className="text-foreground">{maskPII(p.email as string, userRole, "email")}</div>
+                    <div className="text-xs text-muted-foreground">{maskPII(p.phone as string, userRole, "phone")}</div>
                   </td>
                   <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
                     {p.date_of_birth ? new Date(p.date_of_birth as string).toLocaleDateString() : "-"}
@@ -320,8 +330,11 @@ export default function PatientsPage() {
                               </DropdownMenuItem>
                             </>
                           )}
-                          <DropdownMenuItem onClick={() => toast.info("Viewing history...")} className="cursor-pointer">
+                          <DropdownMenuItem onClick={() => router.push(`/dashboard/medical-records?patientId=${p.id}`)} className="cursor-pointer">
                             <Activity className="mr-2 h-4 w-4" /> Medical History
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => router.push(`/dashboard/appointments?search=${p.first_name} ${p.last_name}`)} className="cursor-pointer">
+                            <Plus className="mr-2 h-4 w-4" /> View Appointments
                           </DropdownMenuItem>
                           {canDelete(userRole, "patients") && (
                             <>

@@ -16,21 +16,27 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Textarea } from "@/components/ui/textarea"
-import { Plus, Search, FileText, Edit, Trash2, MoreVertical, Eye, Share2, Download } from "lucide-react"
+import { Plus, Search, FileText, Edit, Trash2, MoreVertical, Eye, Share2, Download, CheckCircle2, Activity } from "lucide-react"
 import { useState } from "react"
 import { useSession } from "next-auth/react"
 import { toast } from "sonner"
+import { useSearchParams } from "next/navigation"
 import { canAdd, canEdit, canDelete, type UserRole } from "@/lib/role-permissions"
+import { maskPII } from "@/lib/privacy"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 export default function MedicalRecordsPage() {
   const { data: session } = useSession()
+  const searchParams = useSearchParams()
+  const patientIdParam = searchParams.get("patientId")
+  const searchParam = searchParams.get("search")
+
   const userRole = (session?.user as { role?: string })?.role as UserRole | undefined
   const { data: records, mutate } = useSWR("/api/medical-records", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
   const { data: patients } = useSWR("/api/patients", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
   const { data: staff } = useSWR("/api/staff", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
-  const [search, setSearch] = useState("")
+  const [search, setSearch] = useState(searchParam || "")
   const [open, setOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const [selectedRecord, setSelectedRecord] = useState<any>(null)
@@ -41,9 +47,11 @@ export default function MedicalRecordsPage() {
 
   const doctors = staff?.filter((s: Record<string, string>) => s.role === "physician" || s.role === "Doctor")
 
-  const filtered = records?.filter((r: Record<string, string>) =>
-    `${r.patient_name || ""} ${r.doctor_name || ""} ${r.diagnosis || ""}`.toLowerCase().includes(search.toLowerCase())
-  )
+  const filtered = records?.filter((r: Record<string, string | number>) => {
+    const matchesSearch = `${r.patient_name || ""} ${r.doctor_name || ""} ${r.diagnosis || ""}`.toLowerCase().includes(search.toLowerCase())
+    const matchesPatientId = !patientIdParam || String(r.patient_id) === patientIdParam
+    return matchesSearch && matchesPatientId
+  })
 
   function resetForm() {
     setFormPatient(""); setFormDoctor("")
@@ -124,6 +132,29 @@ export default function MedicalRecordsPage() {
         setEditOpen(false)
         resetForm()
         return "Medical record updated successfully"
+      },
+      error: (err) => err.message,
+    })
+  }
+
+  async function handleSignOff(id: number) {
+    const promise = fetch(`/api/medical-records?id=${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "sign_off" })
+    }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || "Failed to sign off")
+      }
+      return res.json()
+    })
+
+    toast.promise(promise, {
+      loading: "Signing off record...",
+      success: () => {
+        mutate()
+        return "Medical record digitally signed"
       },
       error: (err) => err.message,
     })
@@ -225,13 +256,24 @@ export default function MedicalRecordsPage() {
                 <div className="flex-1 space-y-3">
                   <div className="flex items-center gap-3">
                     <h3 className="font-bold text-lg text-foreground">{r.patient_name || "Unknown Patient"}</h3>
-                    <Badge variant="secondary" className="bg-primary/5 text-primary border-none">Dr. {r.doctor_name || "Unknown"}</Badge>
+                    <Badge variant="secondary" className="bg-primary/5 text-primary border-none">
+                      Dr. {maskPII(r.doctor_name as string, userRole, "name")}
+                    </Badge>
+                    {r.signed_at ? (
+                      <Badge className="bg-emerald-500/10 text-emerald-600 border-none flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" /> Signed off by {maskPII(r.signer_name as string, userRole, "name")}
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-muted-foreground/60 border-dashed">
+                        Draft/Pending
+                      </Badge>
+                    )}
                   </div>
                   <div className="rounded-xl border border-border/30 bg-muted/20 p-4 space-y-3 transition-colors hover:bg-muted/30">
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <p className="text-sm font-bold text-foreground">Diagnosis</p>
-                        <p className="text-sm text-muted-foreground mt-1">{r.diagnosis}</p>
+                        <p className="text-sm text-muted-foreground mt-1">{maskPII(r.diagnosis as string, userRole, "diagnosis")}</p>
                       </div>
                       {(canEdit(userRole, "medical_records") || canDelete(userRole, "medical_records")) && (
                         <DropdownMenu>
@@ -241,7 +283,11 @@ export default function MedicalRecordsPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-56 glass-dialog">
-                            <DropdownMenuLabel>Record Actions</DropdownMenuLabel>
+                            {userRole === "physician" && !r.signed_at && (
+                              <DropdownMenuItem onClick={() => handleSignOff(r.id as number)} className="cursor-pointer text-emerald-600 font-bold">
+                                <Activity className="mr-2 h-4 w-4" /> Digital Sign-off
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={() => toast.info("Opening report viewer...")} className="cursor-pointer font-medium">
                               <Eye className="mr-2 h-4 w-4" /> View Full Report

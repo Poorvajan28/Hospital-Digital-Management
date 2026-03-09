@@ -20,7 +20,9 @@ import { Users, Plus, Search, Mail, Phone, UserCircle, ArrowUpDown, Edit, Trash2
 import { useState } from "react"
 import { useSession } from "next-auth/react"
 import { toast } from "sonner"
+import { useRouter } from "next/navigation"
 import { canAdd, canEdit, canDelete, type UserRole } from "@/lib/role-permissions"
+import { maskPII } from "@/lib/privacy"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -39,6 +41,7 @@ const statusColors: Record<string, string> = {
 
 export default function StaffPage() {
   const { data: session } = useSession()
+  const router = useRouter()
   const userRole = (session?.user as { role?: string })?.role as UserRole | undefined
   const { data: staff, mutate } = useSWR("/api/staff", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
   const { data: departments } = useSWR("/api/departments", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
@@ -370,6 +373,11 @@ export default function StaffPage() {
                               <DropdownMenuItem onClick={() => toast.info("Payroll details opening...")} className="cursor-pointer">
                                 <CreditCard className="mr-2 h-4 w-4 text-emerald-600" /> View Payroll
                               </DropdownMenuItem>
+                              {member.role === "physician" && (
+                                <DropdownMenuItem onClick={() => router.push(`/dashboard/appointments?doctorId=${member.id}`)} className="cursor-pointer">
+                                  <Calendar className="mr-2 h-4 w-4 text-purple-600" /> View Schedule
+                                </DropdownMenuItem>
+                              )}
                             </>
                           )}
                           {canDelete(userRole, "staff") && (
@@ -402,19 +410,24 @@ export default function StaffPage() {
                     {member.department_name && (
                       <div className="flex items-center gap-2">
                         <Users className="h-3.5 w-3.5" />
-                        <span className="font-medium text-foreground">{member.department_name}</span>
+                        <button
+                          onClick={() => router.push(`/dashboard/departments?search=${member.department_name}`)}
+                          className="font-medium text-foreground hover:underline"
+                        >
+                          {member.department_name}
+                        </button>
                       </div>
                     )}
                     {member.email && (
                       <div className="flex items-center gap-2 overflow-hidden">
                         <Mail className="h-3.5 w-3.5 shrink-0" />
-                        <span className="truncate text-xs">{member.email}</span>
+                        <span className="truncate text-xs">{maskPII(member.email as string, userRole, "email")}</span>
                       </div>
                     )}
                     {member.phone && (
                       <div className="flex items-center gap-2">
                         <Phone className="h-3.5 w-3.5 shrink-0" />
-                        <span className="text-xs">{member.phone}</span>
+                        <span className="text-xs">{maskPII(member.phone as string, userRole, "phone")}</span>
                       </div>
                     )}
                   </div>

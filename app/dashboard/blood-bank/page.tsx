@@ -24,6 +24,8 @@ import { useSession } from "next-auth/react"
 import { toast } from "sonner"
 import { canAdd, canEdit, canDelete, type UserRole } from "@/lib/role-permissions"
 import { AnimatedCounter } from "@/components/animated-counter"
+import { maskPII } from "@/lib/privacy"
+import { useRouter } from "next/navigation"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -37,6 +39,7 @@ const chartConfig = { units: { label: "Units", color: "var(--color-chart-1)" } }
 
 export default function BloodBankPage() {
   const { data: session } = useSession()
+  const router = useRouter()
   const userRole = (session?.user as { role?: string })?.role as UserRole | undefined
   const { data: donors, mutate } = useSWR("/api/blood-donors", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
   const { data: stock } = useSWR("/api/blood-stock", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
@@ -360,8 +363,8 @@ export default function BloodBankPage() {
                   <td className="px-4 py-3.5 font-semibold text-foreground">{d.first_name} {d.last_name}</td>
                   <td className="px-4 py-3.5"><Badge variant="secondary" className="bg-[#dc2626]/10 font-bold text-[#dc2626]">{d.blood_group}</Badge></td>
                   <td className="px-4 py-3.5">
-                    <div className="text-foreground">{d.email || "-"}</div>
-                    <div className="text-xs text-muted-foreground">{d.phone}</div>
+                    <div className="text-foreground">{maskPII(d.email as string, userRole, "email")}</div>
+                    <div className="text-xs text-muted-foreground">{maskPII(d.phone as string, userRole, "phone")}</div>
                   </td>
                   <td className="px-4 py-3.5 font-mono text-xs text-muted-foreground">
                     {d.last_donation_date ? new Date(d.last_donation_date as string).toLocaleDateString() : "Never"}
