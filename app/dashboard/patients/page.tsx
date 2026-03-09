@@ -9,7 +9,15 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
-import { Plus, Search, Activity, ArrowUpDown, Edit, Trash2 } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Plus, Search, Activity, ArrowUpDown, Edit, Trash2, MoreVertical, UserCircle, FileText, Printer } from "lucide-react"
 import { useState } from "react"
 import { useSession } from "next-auth/react"
 import { toast } from "sonner"
@@ -77,16 +85,29 @@ export default function PatientsPage() {
       toast.error("Please fill in the patient's name")
       return
     }
-    const res = await fetch("/api/patients", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
-    if (res.ok) {
-      toast.success("Patient registered successfully")
-      mutate()
-      setOpen(false)
-      resetForm()
-    } else {
-      const err = await res.json().catch(() => ({}))
-      toast.error(err.error || "Failed to register patient")
-    }
+
+    const promise = fetch("/api/patients", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || "Failed to register patient")
+      }
+      return res.json()
+    })
+
+    toast.promise(promise, {
+      loading: "Registering patient...",
+      success: () => {
+        mutate()
+        setOpen(false)
+        resetForm()
+        return "Patient registered successfully"
+      },
+      error: (err) => err.message,
+    })
   }
 
   async function handleEdit(e: React.FormEvent<HTMLFormElement>) {
@@ -105,32 +126,48 @@ export default function PatientsPage() {
       emergency_phone: form.get("emergency_phone"),
       insurance_id: form.get("insurance_id"),
     }
-    const res = await fetch(`/api/patients?id=${selectedPatient.id}`, {
+    const promise = fetch(`/api/patients?id=${selectedPatient.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
+    }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || "Failed to update patient")
+      }
+      return res.json()
     })
-    if (res.ok) {
-      toast.success("Patient details updated successfully")
-      mutate()
-      setEditOpen(false)
-      resetForm()
-    } else {
-      const err = await res.json().catch(() => ({}))
-      toast.error(err.error || "Failed to update patient")
-    }
+
+    toast.promise(promise, {
+      loading: "Updating patient...",
+      success: () => {
+        mutate()
+        setEditOpen(false)
+        resetForm()
+        return "Patient details updated successfully"
+      },
+      error: (err) => err.message,
+    })
   }
 
   async function handleDelete(id: number) {
     if (!confirm("Are you sure you want to delete this patient record?")) return
-    const res = await fetch(`/api/patients?id=${id}`, { method: "DELETE" })
-    if (res.ok) {
-      toast.success("Patient record deleted successfully")
-      mutate()
-    } else {
-      const err = await res.json().catch(() => ({}))
-      toast.error(err.error || "Failed to delete patient")
-    }
+    const promise = fetch(`/api/patients?id=${id}`, { method: "DELETE" }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || "Failed to delete patient")
+      }
+      return res.json()
+    })
+
+    toast.promise(promise, {
+      loading: "Deleting record...",
+      success: () => {
+        mutate()
+        return "Patient record deleted successfully"
+      },
+      error: (err) => err.message,
+    })
   }
 
   function openEdit(p: any) {
@@ -164,9 +201,9 @@ export default function PatientsPage() {
         </div>
         {canAdd(userRole, "patients") && <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm() }}>
           <DialogTrigger asChild>
-            <Button className="gap-2"><Plus className="h-4 w-4" />Register Patient</Button>
+            <Button className="gap-2 btn-premium"><Plus className="h-4 w-4" />Register Patient</Button>
           </DialogTrigger>
-          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg glass-dialog">
             <DialogHeader><DialogTitle>Register New Patient</DialogTitle></DialogHeader>
             <form onSubmit={handleAdd} className="grid gap-4 pt-4">
               <div className="grid grid-cols-2 gap-4">
@@ -207,7 +244,7 @@ export default function PatientsPage() {
                 <div className="space-y-2"><Label>Emergency Phone</Label><Input name="emergency_phone" /></div>
               </div>
               <div className="space-y-2"><Label>Insurance ID</Label><Input name="insurance_id" /></div>
-              <Button type="submit" className="w-full">Register Patient</Button>
+              <Button type="submit" className="w-full btn-premium">Register Patient</Button>
             </form>
           </DialogContent>
         </Dialog>}
@@ -261,18 +298,41 @@ export default function PatientsPage() {
                   </td>
                   {(canEdit(userRole, "patients") || canDelete(userRole, "patients")) && (
                     <td className="px-4 py-3 text-right">
-                      <div className="flex justify-end gap-2">
-                        {canEdit(userRole, "patients") && (
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => openEdit(p)}>
-                            <Edit className="h-4 w-4" />
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted/50">
+                            <MoreVertical className="h-4 w-4 text-muted-foreground" />
                           </Button>
-                        )}
-                        {canDelete(userRole, "patients") && (
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(p.id as number)}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-56 glass-dialog">
+                          <DropdownMenuLabel>Patient Actions</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          {canEdit(userRole, "patients") && (
+                            <>
+                              <DropdownMenuItem onClick={() => openEdit(p)} className="cursor-pointer">
+                                <Edit className="mr-2 h-4 w-4" /> Edit Profile
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => toast.info("Opening quick note...")} className="cursor-pointer">
+                                <FileText className="mr-2 h-4 w-4" /> Add Quick Note
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => toast.info("Generating summary...")} className="cursor-pointer">
+                                <Printer className="mr-2 h-4 w-4" /> Print Summary
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                          <DropdownMenuItem onClick={() => toast.info("Viewing history...")} className="cursor-pointer">
+                            <Activity className="mr-2 h-4 w-4" /> Medical History
+                          </DropdownMenuItem>
+                          {canDelete(userRole, "patients") && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => handleDelete(p.id as number)} className="cursor-pointer text-destructive focus:text-destructive">
+                                <Trash2 className="mr-2 h-4 w-4" /> Delete Record
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </td>
                   )}
                 </tr>
@@ -281,7 +341,7 @@ export default function PatientsPage() {
           </table>
 
           <Dialog open={editOpen} onOpenChange={(v) => { setEditOpen(v); if (!v) resetForm() }}>
-            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg glass-dialog">
               <DialogHeader><DialogTitle>Edit Patient Record</DialogTitle></DialogHeader>
               <form onSubmit={handleEdit} className="grid gap-4 pt-4">
                 <div className="grid grid-cols-2 gap-4">
@@ -322,7 +382,7 @@ export default function PatientsPage() {
                   <div className="space-y-2"><Label>Emergency Phone</Label><Input name="emergency_phone" defaultValue={selectedPatient?.emergency_phone} /></div>
                 </div>
                 <div className="space-y-2"><Label>Insurance ID</Label><Input name="insurance_id" defaultValue={selectedPatient?.insurance_id} /></div>
-                <Button type="submit" className="w-full">Update Patient Record</Button>
+                <Button type="submit" className="w-full btn-premium">Update Patient Record</Button>
               </form>
             </DialogContent>
           </Dialog>

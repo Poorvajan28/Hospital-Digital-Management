@@ -8,7 +8,15 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Droplets, Plus, Search, Heart, Edit, Trash2 } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Droplets, Plus, Search, Heart, Edit, Trash2, MoreVertical, Activity, UserCheck, AlertTriangle, CalendarCheck } from "lucide-react"
 import { Bar, BarChart, XAxis, YAxis, Cell } from "recharts"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { useState } from "react"
@@ -75,16 +83,29 @@ export default function BloodBankPage() {
       toast.error("Please fill in name and blood group")
       return
     }
-    const res = await fetch("/api/blood-donors", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
-    if (res.ok) {
-      toast.success("Blood donor registered successfully")
-      mutate()
-      setOpen(false)
-      resetForm()
-    } else {
-      const err = await res.json().catch(() => ({}))
-      toast.error(err.error || "Failed to register donor")
-    }
+
+    const promise = fetch("/api/blood-donors", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || "Failed to register donor")
+      }
+      return res.json()
+    })
+
+    toast.promise(promise, {
+      loading: "Registering donor...",
+      success: () => {
+        mutate()
+        setOpen(false)
+        resetForm()
+        return "Donor registered successfully"
+      },
+      error: (err) => err.message,
+    })
   }
 
   async function handleEdit(e: React.FormEvent<HTMLFormElement>) {
@@ -101,32 +122,71 @@ export default function BloodBankPage() {
       address: form.get("address"),
       status: formStatus,
     }
-    const res = await fetch(`/api/blood-donors?id=${selectedDonor.id}`, {
+    const promise = fetch(`/api/blood-donors?id=${selectedDonor.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
+    }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || "Failed to update donor")
+      }
+      return res.json()
     })
-    if (res.ok) {
-      toast.success("Donor details updated successfully")
-      mutate()
-      setEditOpen(false)
-      resetForm()
-    } else {
-      const err = await res.json().catch(() => ({}))
-      toast.error(err.error || "Failed to update donor")
-    }
+
+    toast.promise(promise, {
+      loading: "Updating donor...",
+      success: () => {
+        mutate()
+        setEditOpen(false)
+        resetForm()
+        return "Donor details updated successfully"
+      },
+      error: (err) => err.message,
+    })
   }
 
   async function handleDelete(id: number) {
     if (!confirm("Are you sure you want to delete this donor record?")) return
-    const res = await fetch(`/api/blood-donors?id=${id}`, { method: "DELETE" })
-    if (res.ok) {
-      toast.success("Donor record deleted successfully")
-      mutate()
-    } else {
-      const err = await res.json().catch(() => ({}))
-      toast.error(err.error || "Failed to delete donor")
-    }
+    const promise = fetch(`/api/blood-donors?id=${id}`, { method: "DELETE" }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || "Failed to delete donor")
+      }
+      return res.json()
+    })
+
+    toast.promise(promise, {
+      loading: "Deleting donor record...",
+      success: () => {
+        mutate()
+        return "Donor record deleted successfully"
+      },
+      error: (err) => err.message,
+    })
+  }
+
+  async function handleStatusUpdate(id: number, newStatus: string) {
+    const promise = fetch(`/api/blood-donors?id=${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: newStatus })
+    }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || "Failed to update status")
+      }
+      return res.json()
+    })
+
+    toast.promise(promise, {
+      loading: `Marking donor as ${newStatus}...`,
+      success: () => {
+        mutate()
+        return `Donor is now ${newStatus}`
+      },
+      error: (err) => err.message,
+    })
   }
 
   function openEdit(donor: any) {
@@ -232,9 +292,9 @@ export default function BloodBankPage() {
         </div>
         {canAdd(userRole, "blood_bank") && <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm() }}>
           <DialogTrigger asChild>
-            <Button className="gap-2 shadow-lg shadow-primary/20"><Plus className="h-4 w-4" />Register Donor</Button>
+            <Button className="gap-2 btn-premium"><Plus className="h-4 w-4" />Register Donor</Button>
           </DialogTrigger>
-          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-max-w-lg glass-dialog">
             <DialogHeader><DialogTitle className="text-xl">Register Blood Donor</DialogTitle></DialogHeader>
             <form onSubmit={handleAdd} className="grid gap-4 pt-4">
               <div className="grid grid-cols-2 gap-4">
@@ -270,7 +330,7 @@ export default function BloodBankPage() {
                 </div>
               </div>
               <div className="space-y-2"><Label>Address</Label><Input name="address" className="border-border/50" /></div>
-              <Button type="submit" className="w-full shadow-lg shadow-primary/20">Register Donor</Button>
+              <Button type="submit" className="w-full btn-premium">Register Donor</Button>
             </form>
           </DialogContent>
         </Dialog>}
@@ -314,18 +374,46 @@ export default function BloodBankPage() {
                   </td>
                   {(canEdit(userRole, "blood_bank") || canDelete(userRole, "blood_bank")) && (
                     <td className="px-4 py-3.5 text-right">
-                      <div className="flex justify-end gap-2">
-                        {canEdit(userRole, "blood_bank") && (
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => openEdit(d)}>
-                            <Edit className="h-4 w-4" />
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted/50">
+                            <MoreVertical className="h-4 w-4 text-muted-foreground" />
                           </Button>
-                        )}
-                        {canDelete(userRole, "blood_bank") && (
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(d.id as number)}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-56 glass-dialog">
+                          <DropdownMenuLabel>Donor Actions</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          {canEdit(userRole, "blood_bank") && (
+                            <>
+                              <DropdownMenuItem onClick={() => openEdit(d)} className="cursor-pointer font-medium">
+                                <Edit className="mr-2 h-4 w-4" /> Edit Profile
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => handleStatusUpdate(d.id as number, d.status === "active" ? "deferred" : "active")} className="cursor-pointer">
+                                {d.status === "active" ? (
+                                  <><AlertTriangle className="mr-2 h-4 w-4 text-amber-600" /> Mark Deferred</>
+                                ) : (
+                                  <><UserCheck className="mr-2 h-4 w-4 text-emerald-600" /> Mark Active</>
+                                )}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => toast.info("Recording new donation...")} className="cursor-pointer text-blue-600">
+                                <CalendarCheck className="mr-2 h-4 w-4" /> Record Donation
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                          <DropdownMenuItem onClick={() => toast.info("Viewing history...")} className="cursor-pointer">
+                            <Activity className="mr-2 h-4 w-4" /> Donation History
+                          </DropdownMenuItem>
+                          {canDelete(userRole, "blood_bank") && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => handleDelete(d.id as number)} className="cursor-pointer text-destructive focus:text-destructive font-medium">
+                                <Trash2 className="mr-2 h-4 w-4" /> Archive Record
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </td>
                   )}
                 </tr>
@@ -334,7 +422,7 @@ export default function BloodBankPage() {
           </table>
 
           <Dialog open={editOpen} onOpenChange={(v) => { setEditOpen(v); if (!v) resetForm() }}>
-            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg glass-dialog">
               <DialogHeader><DialogTitle className="text-xl">Edit Donor Profile</DialogTitle></DialogHeader>
               <form onSubmit={handleEdit} className="grid gap-4 pt-4">
                 <div className="grid grid-cols-2 gap-4">
@@ -380,9 +468,9 @@ export default function BloodBankPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-2"><Label>Address</Label><Input name="address" defaultValue={selectedDonor?.address} /></div>
+                  <div className="space-y-2"><Label>Address</Label><Input name="address" defaultValue={selectedDonor?.address} className="border-border/50" /></div>
                 </div>
-                <Button type="submit" className="w-full">Update Donor Profile</Button>
+                <Button type="submit" className="w-full btn-premium">Update Donor Profile</Button>
               </form>
             </DialogContent>
           </Dialog>

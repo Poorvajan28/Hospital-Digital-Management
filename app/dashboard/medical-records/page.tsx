@@ -7,8 +7,16 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Textarea } from "@/components/ui/textarea"
-import { Plus, Search, FileText, Edit, Trash2 } from "lucide-react"
+import { Plus, Search, FileText, Edit, Trash2, MoreVertical, Eye, Share2, Download } from "lucide-react"
 import { useState } from "react"
 import { useSession } from "next-auth/react"
 import { toast } from "sonner"
@@ -59,16 +67,29 @@ export default function MedicalRecordsPage() {
       toast.error("Please fill in patient, doctor, and diagnosis")
       return
     }
-    const res = await fetch("/api/medical-records", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
-    if (res.ok) {
-      toast.success("Medical record added successfully")
-      mutate()
-      setOpen(false)
-      resetForm()
-    } else {
-      const err = await res.json().catch(() => ({}))
-      toast.error(err.error || "Failed to add medical record")
-    }
+
+    const promise = fetch("/api/medical-records", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || "Failed to add medical record")
+      }
+      return res.json()
+    })
+
+    toast.promise(promise, {
+      loading: "Saving record...",
+      success: () => {
+        mutate()
+        setOpen(false)
+        resetForm()
+        return "Medical record added successfully"
+      },
+      error: (err) => err.message,
+    })
   }
 
   async function handleEdit(e: React.FormEvent<HTMLFormElement>) {
@@ -84,32 +105,48 @@ export default function MedicalRecordsPage() {
       follow_up_date: form.get("follow_up_date") || null,
       notes: form.get("notes"),
     }
-    const res = await fetch(`/api/medical-records?id=${selectedRecord.id}`, {
+    const promise = fetch(`/api/medical-records?id=${selectedRecord.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
+    }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || "Failed to update record")
+      }
+      return res.json()
     })
-    if (res.ok) {
-      toast.success("Medical record updated successfully")
-      mutate()
-      setEditOpen(false)
-      resetForm()
-    } else {
-      const err = await res.json().catch(() => ({}))
-      toast.error(err.error || "Failed to update record")
-    }
+
+    toast.promise(promise, {
+      loading: "Updating record...",
+      success: () => {
+        mutate()
+        setEditOpen(false)
+        resetForm()
+        return "Medical record updated successfully"
+      },
+      error: (err) => err.message,
+    })
   }
 
   async function handleDelete(id: number) {
     if (!confirm("Are you sure you want to delete this medical record?")) return
-    const res = await fetch(`/api/medical-records?id=${id}`, { method: "DELETE" })
-    if (res.ok) {
-      toast.success("Medical record deleted successfully")
-      mutate()
-    } else {
-      const err = await res.json().catch(() => ({}))
-      toast.error(err.error || "Failed to delete record")
-    }
+    const promise = fetch(`/api/medical-records?id=${id}`, { method: "DELETE" }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || "Failed to delete record")
+      }
+      return res.json()
+    })
+
+    toast.promise(promise, {
+      loading: "Deleting record...",
+      success: () => {
+        mutate()
+        return "Medical record deleted successfully"
+      },
+      error: (err) => err.message,
+    })
   }
 
   function openEdit(record: any) {
@@ -129,9 +166,9 @@ export default function MedicalRecordsPage() {
         {canAdd(userRole, "medical_records") && (
           <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm() }}>
             <DialogTrigger asChild>
-              <Button className="gap-2"><Plus className="h-4 w-4" />Add Record</Button>
+              <Button className="gap-2 btn-premium"><Plus className="h-4 w-4" />Add Record</Button>
             </DialogTrigger>
-            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg glass-dialog">
               <DialogHeader><DialogTitle>Add Medical Record</DialogTitle></DialogHeader>
               <form onSubmit={handleAdd} className="grid gap-4 pt-4">
                 <div className="grid grid-cols-2 gap-4">
@@ -166,7 +203,7 @@ export default function MedicalRecordsPage() {
                   <div className="space-y-2"><Label>Follow-up Date</Label><Input name="follow_up_date" type="date" /></div>
                 </div>
                 <div className="space-y-2"><Label>Notes</Label><Textarea name="notes" rows={2} /></div>
-                <Button type="submit" className="w-full">Add Record</Button>
+                <Button type="submit" className="w-full btn-premium">Add Record</Button>
               </form>
             </DialogContent>
           </Dialog>
@@ -182,39 +219,88 @@ export default function MedicalRecordsPage() {
         <div className="space-y-3">{[1, 2, 3, 4].map(i => <div key={i} className="h-24 animate-pulse rounded-lg bg-muted" />)}</div>
       ) : (
         <div className="space-y-4">
-          {filtered?.map((r: Record<string, string | number | null>) => (
-            <div key={r.id} className="rounded-lg border border-border bg-card p-5 transition-all hover:shadow-md hover:shadow-primary/5">
+          {filtered?.map((r: Record<string, string | number | null>, index: number) => (
+            <div key={r.id} className="animate-row-enter rounded-xl border border-border/50 bg-card p-5 transition-all hover:shadow-xl hover:shadow-primary/5 hover:-translate-y-0.5" style={{ animationDelay: `${index * 50}ms` }}>
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div className="flex-1 space-y-2">
+                <div className="flex-1 space-y-3">
                   <div className="flex items-center gap-3">
-                    <h3 className="font-semibold text-foreground">{r.patient_name || "Unknown Patient"}</h3>
-                    <span className="text-sm text-muted-foreground">by Dr. {r.doctor_name || "Unknown"}</span>
+                    <h3 className="font-bold text-lg text-foreground">{r.patient_name || "Unknown Patient"}</h3>
+                    <Badge variant="secondary" className="bg-primary/5 text-primary border-none">Dr. {r.doctor_name || "Unknown"}</Badge>
                   </div>
-                  <div className="rounded-md bg-muted/50 p-3">
-                    <div className="flex items-start justify-between">
-                      <p className="text-sm font-medium text-foreground">Diagnosis: {r.diagnosis}</p>
-                      <div className="flex gap-1">
-                        {canEdit(userRole, "medical_records") && (
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary" onClick={() => openEdit(r)}>
-                            <Edit className="h-3.5 w-3.5" />
-                          </Button>
+                  <div className="rounded-xl border border-border/30 bg-muted/20 p-4 space-y-3 transition-colors hover:bg-muted/30">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-bold text-foreground">Diagnosis</p>
+                        <p className="text-sm text-muted-foreground mt-1">{r.diagnosis}</p>
+                      </div>
+                      {(canEdit(userRole, "medical_records") || canDelete(userRole, "medical_records")) && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 -mr-1">
+                              <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-56 glass-dialog">
+                            <DropdownMenuLabel>Record Actions</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => toast.info("Opening report viewer...")} className="cursor-pointer font-medium">
+                              <Eye className="mr-2 h-4 w-4" /> View Full Report
+                            </DropdownMenuItem>
+                            {canEdit(userRole, "medical_records") && (
+                              <DropdownMenuItem onClick={() => openEdit(r)} className="cursor-pointer">
+                                <Edit className="mr-2 h-4 w-4" /> Edit Record
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => toast.info("Sharing with patient...")} className="cursor-pointer">
+                              <Share2 className="mr-2 h-4 w-4" /> Share with Patient
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => toast.info("Generating PDF...")} className="cursor-pointer">
+                              <Download className="mr-2 h-4 w-4" /> Download PDF
+                            </DropdownMenuItem>
+                            {canDelete(userRole, "medical_records") && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={() => handleDelete(r.id as number)} className="cursor-pointer text-destructive focus:text-destructive">
+                                  <Trash2 className="mr-2 h-4 w-4" /> Delete Record
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                    </div>
+                    {(r.treatment || r.prescription) && (
+                      <div className="grid sm:grid-cols-2 gap-4 pt-2 border-t border-border/20">
+                        {r.treatment && (
+                          <div>
+                            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground/60">Treatment</p>
+                            <p className="text-sm text-foreground mt-1">{r.treatment}</p>
+                          </div>
                         )}
-                        {canDelete(userRole, "medical_records") && (
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(r.id as number)}>
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                        {r.prescription && (
+                          <div>
+                            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground/60">Prescription (Rx)</p>
+                            <p className="text-sm text-emerald-600 dark:text-emerald-500 font-medium mt-1">{r.prescription}</p>
+                          </div>
                         )}
                       </div>
-                    </div>
-                    {r.treatment && <p className="mt-1 text-sm text-muted-foreground">Treatment: {r.treatment}</p>}
-                    {r.prescription && <p className="mt-1 text-sm text-muted-foreground">Rx: {r.prescription}</p>}
+                    )}
                   </div>
-                  {r.notes && <p className="text-xs text-muted-foreground italic">{r.notes}</p>}
+                  {r.notes && (
+                    <div className="flex items-start gap-2 text-xs text-muted-foreground italic px-1">
+                      <FileText className="h-3 w-3 mt-0.5 shrink-0" />
+                      <p>{r.notes}</p>
+                    </div>
+                  )}
                 </div>
-                <div className="flex shrink-0 flex-col items-end gap-1 text-xs text-muted-foreground">
-                  <span className="font-mono">Visit: {r.visit_date ? new Date(r.visit_date as string).toLocaleDateString("en-IN") : "—"}</span>
+                <div className="flex shrink-0 flex-col items-end gap-2 text-xs">
+                  <div className="flex flex-col items-end">
+                    <span className="text-muted-foreground font-medium uppercase tracking-tighter text-[10px]">Visit Date</span>
+                    <span className="font-bold text-foreground font-mono">{r.visit_date ? new Date(r.visit_date as string).toLocaleDateString("en-IN") : "—"}</span>
+                  </div>
                   {r.follow_up_date && (
-                    <Badge variant="outline" className="text-xs">
+                    <Badge variant="outline" className="text-[10px] font-bold border-primary/20 bg-primary/5 text-primary px-2 py-0.5">
                       Follow-up: {new Date(r.follow_up_date as string).toLocaleDateString("en-IN")}
                     </Badge>
                   )}
@@ -226,7 +312,7 @@ export default function MedicalRecordsPage() {
       )}
 
       <Dialog open={editOpen} onOpenChange={(v) => { setEditOpen(v); if (!v) resetForm() }}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg glass-dialog">
           <DialogHeader><DialogTitle>Edit Medical Record</DialogTitle></DialogHeader>
           <form onSubmit={handleEdit} className="grid gap-4 pt-4">
             <div className="grid grid-cols-2 gap-4">
@@ -261,7 +347,7 @@ export default function MedicalRecordsPage() {
               <div className="space-y-2"><Label>Follow-up Date</Label><Input name="follow_up_date" type="date" defaultValue={selectedRecord?.follow_up_date} /></div>
             </div>
             <div className="space-y-2"><Label>Notes</Label><Textarea name="notes" defaultValue={selectedRecord?.notes} rows={2} /></div>
-            <Button type="submit" className="w-full">Update Record</Button>
+            <Button type="submit" className="w-full btn-premium">Update Record</Button>
           </form>
         </DialogContent>
       </Dialog>

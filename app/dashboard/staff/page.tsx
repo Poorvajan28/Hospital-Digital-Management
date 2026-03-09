@@ -8,7 +8,15 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Users, Plus, Search, Mail, Phone, UserCircle, ArrowUpDown, Edit, Trash2 } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Users, Plus, Search, Mail, Phone, UserCircle, ArrowUpDown, Edit, Trash2, MoreVertical, Calendar, Clock, CreditCard, CheckCircle, XCircle, AlertCircle } from "lucide-react"
 import { useState } from "react"
 import { useSession } from "next-auth/react"
 import { toast } from "sonner"
@@ -81,16 +89,29 @@ export default function StaffPage() {
       toast.error("Please fill in required fields (name and role)")
       return
     }
-    const res = await fetch("/api/staff", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
-    if (res.ok) {
-      toast.success("Staff member added successfully")
-      mutate()
-      setOpen(false)
-      resetForm()
-    } else {
-      const err = await res.json().catch(() => ({}))
-      toast.error(err.error || "Failed to add staff member")
-    }
+
+    const promise = fetch("/api/staff", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || "Failed to add staff member")
+      }
+      return res.json()
+    })
+
+    toast.promise(promise, {
+      loading: "Adding staff member...",
+      success: () => {
+        mutate()
+        setOpen(false)
+        resetForm()
+        return "Staff member added successfully"
+      },
+      error: (err) => err.message,
+    })
   }
 
   async function handleEditStaff(e: React.FormEvent<HTMLFormElement>) {
@@ -107,32 +128,71 @@ export default function StaffPage() {
       salary: form.get("salary") ? Number(form.get("salary")) : null,
       status: formStatus,
     }
-    const res = await fetch(`/api/staff?id=${selectedStaff.id}`, {
+    const promise = fetch(`/api/staff?id=${selectedStaff.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
+    }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || "Failed to update staff member")
+      }
+      return res.json()
     })
-    if (res.ok) {
-      toast.success("Staff member updated successfully")
-      mutate()
-      setEditOpen(false)
-      resetForm()
-    } else {
-      const err = await res.json().catch(() => ({}))
-      toast.error(err.error || "Failed to update staff member")
-    }
+
+    toast.promise(promise, {
+      loading: "Updating profile...",
+      success: () => {
+        mutate()
+        setEditOpen(false)
+        resetForm()
+        return "Staff member updated successfully"
+      },
+      error: (err) => err.message,
+    })
   }
 
   async function handleDeleteStaff(id: number) {
     if (!confirm("Are you sure you want to delete this staff member?")) return
-    const res = await fetch(`/api/staff?id=${id}`, { method: "DELETE" })
-    if (res.ok) {
-      toast.success("Staff member deleted successfully")
-      mutate()
-    } else {
-      const err = await res.json().catch(() => ({}))
-      toast.error(err.error || "Failed to delete staff member")
-    }
+    const promise = fetch(`/api/staff?id=${id}`, { method: "DELETE" }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || "Failed to delete staff member")
+      }
+      return res.json()
+    })
+
+    toast.promise(promise, {
+      loading: "Deleting member...",
+      success: () => {
+        mutate()
+        return "Staff member deleted successfully"
+      },
+      error: (err) => err.message,
+    })
+  }
+
+  async function handleStatusUpdate(id: number, newStatus: string) {
+    const promise = fetch(`/api/staff?id=${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: newStatus })
+    }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || "Failed to update status")
+      }
+      return res.json()
+    })
+
+    toast.promise(promise, {
+      loading: `Changing status to ${newStatus}...`,
+      success: () => {
+        mutate()
+        return `Member is now ${newStatus.replace("_", " ")}`
+      },
+      error: (err) => err.message,
+    })
   }
 
   function openEdit(member: any) {
@@ -181,12 +241,12 @@ export default function StaffPage() {
         </div>
         {canAdd(userRole, "staff") && <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setFormRole(""); setFormDeptId(""); } }}>
           <DialogTrigger asChild>
-            <Button className="gap-2 shadow-lg shadow-primary/20">
+            <Button className="gap-2 btn-premium">
               <Plus className="h-4 w-4" />
               Add Staff
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg glass-dialog">
             <DialogHeader>
               <DialogTitle className="text-xl">Add New Staff Member</DialogTitle>
             </DialogHeader>
@@ -239,10 +299,10 @@ export default function StaffPage() {
                 <Input id="specialization" name="specialization" className="border-border/50" />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="salary">Annual Salary</Label>
+                <Label htmlFor="salary">Annual Salary (₹)</Label>
                 <Input id="salary" name="salary" type="number" className="border-border/50" />
               </div>
-              <Button type="submit" className="w-full shadow-lg shadow-primary/20">Add Staff Member</Button>
+              <Button type="submit" className="w-full btn-premium">Add Staff Member</Button>
             </form>
           </DialogContent>
         </Dialog>}
@@ -268,68 +328,102 @@ export default function StaffPage() {
             {filtered?.map((member: Record<string, string | number | null>, index: number) => (
               <Card
                 key={member.id}
-                className="animate-fade-in group border-border/50 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/5"
+                className="animate-fade-in group glass-card transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-primary/10"
                 style={{ animationDelay: `${index * 50}ms` }}
               >
-                <CardHeader className="pb-3">
+                <CardHeader className="pb-3 border-b border-border/10 mb-3">
                   <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-                        <UserCircle className="h-5 w-5 text-primary" />
+                    <div className="flex items-center gap-4">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 transition-transform duration-300 group-hover:scale-110">
+                        <UserCircle className="h-6 w-6 text-primary" />
                       </div>
                       <div>
-                        <CardTitle className="text-base font-bold text-foreground">
+                        <CardTitle className="text-lg font-bold text-foreground">
                           {member.role === "physician" ? "Dr. " : ""}
                           {member.first_name} {member.last_name}
                         </CardTitle>
-                        <p className="mt-0.5 text-xs text-muted-foreground">{member.specialization || member.role}</p>
+                        <p className="mt-0.5 text-xs text-muted-foreground font-medium uppercase tracking-wider">{member.specialization || member.role}</p>
                       </div>
                     </div>
-                    <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                      {canEdit(userRole, "staff") && (
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => openEdit(member)}>
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                      )}
-                      {canDelete(userRole, "staff") && (
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDeleteStaff(member.id as number)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
+                    {(canEdit(userRole, "staff") || canDelete(userRole, "staff")) && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 -mr-2">
+                            <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-56 glass-dialog">
+                          <DropdownMenuLabel>Staff Actions</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          {canEdit(userRole, "staff") && (
+                            <>
+                              <DropdownMenuItem onClick={() => openEdit(member)} className="cursor-pointer font-medium">
+                                <Edit className="mr-2 h-4 w-4" /> Edit Profile
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => handleStatusUpdate(member.id as number, member.status === "active" ? "on_leave" : "active")} className="cursor-pointer">
+                                <Calendar className="mr-2 h-4 w-4 text-amber-600" /> {member.status === "on_leave" ? "Mark Active" : "Set On Leave"}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => toast.info("Shift schedule opening...")} className="cursor-pointer">
+                                <Clock className="mr-2 h-4 w-4 text-blue-600" /> Manage Shift
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => toast.info("Payroll details opening...")} className="cursor-pointer">
+                                <CreditCard className="mr-2 h-4 w-4 text-emerald-600" /> View Payroll
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                          {canDelete(userRole, "staff") && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => handleDeleteStaff(member.id as number)} className="cursor-pointer text-destructive focus:text-destructive font-medium">
+                                <Trash2 className="mr-2 h-4 w-4" /> Terminate Member
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-3 text-sm">
+                <CardContent className="space-y-4 text-sm pt-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="secondary" className={`font-semibold ${roleColors[member.role as string] || ""}`}>
+                    <Badge variant="secondary" className={`font-bold border-none ${roleColors[member.role as string] || ""}`}>
                       {member.role}
                     </Badge>
-                    <Badge variant="secondary" className={`font-semibold ${statusColors[member.status as string] || ""}`}>
+                    <Badge variant="secondary" className={`font-bold border-none flex items-center gap-1 ${statusColors[member.status as string] || ""}`}>
+                      {member.status === "active" && <CheckCircle className="h-3 w-3" />}
+                      {member.status === "on_leave" && <AlertCircle className="h-3 w-3" />}
+                      {member.status === "inactive" && <XCircle className="h-3 w-3" />}
                       {(member.status as string)?.replace("_", " ")}
                     </Badge>
                   </div>
-                  {member.department_name && (
-                    <p className="text-muted-foreground">
-                      <span className="text-xs uppercase tracking-wider text-muted-foreground/60">Dept:</span>{" "}
-                      <span className="font-medium text-foreground">{member.department_name}</span>
-                    </p>
-                  )}
-                  {member.email && (
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Mail className="h-3.5 w-3.5 shrink-0" />
-                      <span className="truncate text-xs">{member.email}</span>
-                    </div>
-                  )}
-                  {member.phone && (
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Phone className="h-3.5 w-3.5 shrink-0" />
-                      <span className="text-xs">{member.phone}</span>
-                    </div>
-                  )}
+
+                  <div className="grid gap-2 text-muted-foreground">
+                    {member.department_name && (
+                      <div className="flex items-center gap-2">
+                        <Users className="h-3.5 w-3.5" />
+                        <span className="font-medium text-foreground">{member.department_name}</span>
+                      </div>
+                    )}
+                    {member.email && (
+                      <div className="flex items-center gap-2 overflow-hidden">
+                        <Mail className="h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate text-xs">{member.email}</span>
+                      </div>
+                    )}
+                    {member.phone && (
+                      <div className="flex items-center gap-2">
+                        <Phone className="h-3.5 w-3.5 shrink-0" />
+                        <span className="text-xs">{member.phone}</span>
+                      </div>
+                    )}
+                  </div>
+
                   {member.join_date && (
-                    <p className="border-t border-border/30 pt-2 text-xs text-muted-foreground">
-                      Joined {new Date(member.join_date as string).toLocaleDateString()}
-                    </p>
+                    <div className="pt-2 flex items-center justify-between border-t border-border/20">
+                      <span className="text-[10px] uppercase font-semibold text-muted-foreground/60 tracking-wider font-mono">Employee Since</span>
+                      <span className="font-bold text-foreground font-mono text-xs">{new Date(member.join_date as string).toLocaleDateString()}</span>
+                    </div>
                   )}
                 </CardContent>
               </Card>
@@ -337,7 +431,7 @@ export default function StaffPage() {
           </div>
 
           <Dialog open={editOpen} onOpenChange={(v) => { setEditOpen(v); if (!v) resetForm(); }}>
-            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg glass-dialog">
               <DialogHeader>
                 <DialogTitle className="text-xl">Edit Staff Member</DialogTitle>
               </DialogHeader>
@@ -403,10 +497,10 @@ export default function StaffPage() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit_salary">Annual Salary</Label>
+                  <Label htmlFor="edit_salary">Annual Salary (₹)</Label>
                   <Input id="edit_salary" name="salary" type="number" defaultValue={selectedStaff?.salary} className="border-border/50" />
                 </div>
-                <Button type="submit" className="w-full shadow-lg shadow-primary/20">Update Staff Member</Button>
+                <Button type="submit" className="w-full btn-premium">Update Staff Member</Button>
               </form>
             </DialogContent>
           </Dialog>

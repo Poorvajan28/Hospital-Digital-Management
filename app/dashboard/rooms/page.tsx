@@ -8,7 +8,15 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { BedDouble, DoorOpen, Plus, Search, Edit, Trash2 } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { BedDouble, DoorOpen, Plus, Search, Edit, Trash2, MoreVertical, Power, Settings, CheckCircle, XCircle, AlertTriangle } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
 import { useState } from "react"
 import { useSession } from "next-auth/react"
@@ -79,16 +87,29 @@ export default function RoomsPage() {
       toast.error("Please fill in the room number")
       return
     }
-    const res = await fetch("/api/rooms", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
-    if (res.ok) {
-      toast.success("Room added successfully")
-      mutate()
-      setOpen(false)
-      resetForm()
-    } else {
-      const err = await res.json().catch(() => ({}))
-      toast.error(err.error || "Failed to add room")
-    }
+
+    const promise = fetch("/api/rooms", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || "Failed to add room")
+      }
+      return res.json()
+    })
+
+    toast.promise(promise, {
+      loading: "Adding room...",
+      success: () => {
+        mutate()
+        setOpen(false)
+        resetForm()
+        return "Room added successfully"
+      },
+      error: (err) => err.message,
+    })
   }
 
   async function handleEdit(e: React.FormEvent<HTMLFormElement>) {
@@ -102,32 +123,71 @@ export default function RoomsPage() {
       daily_rate: Number(form.get("daily_rate") || 0),
       status: formStatus,
     }
-    const res = await fetch(`/api/rooms?id=${selectedRoom.id}`, {
+    const promise = fetch(`/api/rooms?id=${selectedRoom.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
+    }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || "Failed to update room")
+      }
+      return res.json()
     })
-    if (res.ok) {
-      toast.success("Room updated successfully")
-      mutate()
-      setEditOpen(false)
-      resetForm()
-    } else {
-      const err = await res.json().catch(() => ({}))
-      toast.error(err.error || "Failed to update room")
-    }
+
+    toast.promise(promise, {
+      loading: "Updating room...",
+      success: () => {
+        mutate()
+        setEditOpen(false)
+        resetForm()
+        return "Room updated successfully"
+      },
+      error: (err) => err.message,
+    })
   }
 
   async function handleDelete(id: number) {
     if (!confirm("Are you sure? This will delete the room record.")) return
-    const res = await fetch(`/api/rooms?id=${id}`, { method: "DELETE" })
-    if (res.ok) {
-      toast.success("Room deleted successfully")
-      mutate()
-    } else {
-      const err = await res.json().catch(() => ({}))
-      toast.error(err.error || "Failed to delete room")
-    }
+    const promise = fetch(`/api/rooms?id=${id}`, { method: "DELETE" }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || "Failed to delete room")
+      }
+      return res.json()
+    })
+
+    toast.promise(promise, {
+      loading: "Deleting room...",
+      success: () => {
+        mutate()
+        return "Room deleted successfully"
+      },
+      error: (err) => err.message,
+    })
+  }
+
+  async function handleStatusUpdate(id: number, newStatus: string) {
+    const promise = fetch(`/api/rooms?id=${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: newStatus })
+    }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || "Failed to update status")
+      }
+      return res.json()
+    })
+
+    toast.promise(promise, {
+      loading: `Updating room to ${newStatus}...`,
+      success: () => {
+        mutate()
+        return `Room is now ${newStatus}`
+      },
+      error: (err) => err.message,
+    })
   }
 
   function openEdit(room: any) {
@@ -211,9 +271,9 @@ export default function RoomsPage() {
         </div>
         {canAdd(userRole, "rooms") && <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm() }}>
           <DialogTrigger asChild>
-            <Button className="gap-2 shadow-lg shadow-primary/20"><Plus className="h-4 w-4" />Add Room</Button>
+            <Button className="gap-2 btn-premium"><Plus className="h-4 w-4" />Add Room</Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-lg">
+          <DialogContent className="sm:max-w-lg glass-dialog">
             <DialogHeader><DialogTitle>Add New Room</DialogTitle></DialogHeader>
             <form onSubmit={handleAdd} className="grid gap-4 pt-4">
               <div className="grid grid-cols-2 gap-4">
@@ -237,7 +297,7 @@ export default function RoomsPage() {
                 <div className="space-y-2"><Label>Total Beds</Label><Input name="beds_total" type="number" defaultValue="1" className="border-border/50" /></div>
                 <div className="space-y-2"><Label>Daily Rate (₹)</Label><Input name="daily_rate" type="number" step="0.01" className="border-border/50" /></div>
               </div>
-              <Button type="submit" className="w-full shadow-lg shadow-primary/20">Add Room</Button>
+              <Button type="submit" className="w-full btn-premium">Add Room</Button>
             </form>
           </DialogContent>
         </Dialog>}
@@ -268,43 +328,78 @@ export default function RoomsPage() {
             return (
               <Card
                 key={room.id}
-                className="animate-fade-in group border-border/50 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/5"
+                className="animate-fade-in group glass-card transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-primary/10"
                 style={{ animationDelay: `${index * 60}ms` }}
               >
-                <CardHeader className="pb-3 px-6 pt-6">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle className="text-lg font-bold text-foreground">Room {room.room_number}</CardTitle>
-                      <p className="mt-0.5 text-xs text-muted-foreground">Floor {room.floor}</p>
-                    </div>
+                <CardHeader className="pb-3 px-6 pt-6 flex-row items-start justify-between space-y-0">
+                  <div>
+                    <CardTitle className="text-lg font-bold text-foreground">Room {room.room_number}</CardTitle>
+                    <p className="mt-0.5 text-xs text-muted-foreground font-medium uppercase tracking-wider">Floor {room.floor}</p>
+                  </div>
+                  {(canEdit(userRole, "rooms") || canDelete(userRole, "rooms")) && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 -mr-2">
+                          <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48 glass-dialog">
+                        <DropdownMenuLabel>Room Actions</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        {canEdit(userRole, "rooms") && (
+                          <>
+                            <DropdownMenuItem onClick={() => openEdit(room)} className="cursor-pointer font-medium">
+                              <Edit className="mr-2 h-4 w-4" /> Edit Details
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => handleStatusUpdate(room.id as number, room.status === "available" ? "maintenance" : "available")} className="cursor-pointer">
+                              <Settings className="mr-2 h-4 w-4 text-amber-600" /> {room.status === "maintenance" ? "End Maintenance" : "Set Maintenance"}
+                            </DropdownMenuItem>
+                            {room.status !== "occupied" && (
+                              <DropdownMenuItem onClick={() => handleStatusUpdate(room.id as number, room.status === "available" ? "occupied" : "available")} className="cursor-pointer">
+                                <Power className="mr-2 h-4 w-4 text-blue-600" /> {room.status === "available" ? "Fast Occupy" : "Fast Vacate"}
+                              </DropdownMenuItem>
+                            )}
+                          </>
+                        )}
+                        {canDelete(userRole, "rooms") && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => handleDelete(room.id as number)} className="cursor-pointer text-destructive focus:text-destructive">
+                              <Trash2 className="mr-2 h-4 w-4" /> Delete Room
+                            </DropdownMenuItem>
+                          </>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </CardHeader>
+                <CardContent className="space-y-4 px-6 pb-6">
+                  <div className="flex flex-wrap gap-2">
                     <Badge variant="secondary" className={`font-semibold ${typeColors[room.room_type as string] || ""}`}>
                       {room.room_type}
                     </Badge>
                   </div>
-                  <div className="absolute right-2 top-11 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                    {canEdit(userRole, "rooms") && (
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary" onClick={() => openEdit(room)}>
-                        <Edit className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
-                    {canDelete(userRole, "rooms") && (
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(room.id as number)}>
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground font-medium">Bed Occupancy</span>
+                      <span className="font-bold text-foreground">{room.beds_occupied}/{room.beds_total}</span>
+                    </div>
+                    <Progress value={occupancy} className="h-1.5 bg-muted" />
                   </div>
-                </CardHeader>
-                <CardContent className="space-y-3 px-6 pb-6">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Beds</span>
-                    <span className="font-bold text-foreground">{room.beds_occupied}/{room.beds_total}</span>
-                  </div>
-                  <Progress value={occupancy} className="h-2" />
-                  <div className="flex items-center justify-between">
-                    <Badge variant="secondary" className={`font-semibold ${statusColors[room.status as string] || ""}`}>
-                      {room.status}
+                  <div className="flex items-center justify-between pt-1">
+                    <Badge variant="secondary" className={`font-semibold capitalize border-none ${statusColors[room.status as string] || ""}`}>
+                      <span className="flex items-center gap-1.5">
+                        {room.status === "available" && <CheckCircle className="h-3 w-3" />}
+                        {room.status === "occupied" && <XCircle className="h-3 w-3" />}
+                        {room.status === "maintenance" && <AlertTriangle className="h-3 w-3" />}
+                        {room.status}
+                      </span>
                     </Badge>
-                    <span className="text-sm font-bold text-foreground">₹{Number(room.daily_rate).toLocaleString("en-IN")}<span className="text-xs font-normal text-muted-foreground">/day</span></span>
+                    <span className="text-sm font-bold text-foreground">
+                      ₹{Number(room.daily_rate).toLocaleString("en-IN")}
+                      <span className="text-[10px] font-medium text-muted-foreground ml-1 uppercase">/ day</span>
+                    </span>
                   </div>
                 </CardContent>
               </Card>
@@ -314,7 +409,7 @@ export default function RoomsPage() {
       )}
 
       <Dialog open={editOpen} onOpenChange={(v) => { setEditOpen(v); if (!v) resetForm() }}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg glass-dialog">
           <DialogHeader><DialogTitle>Edit Room Details</DialogTitle></DialogHeader>
           <form onSubmit={handleEdit} className="grid gap-4 pt-4">
             <div className="grid grid-cols-2 gap-4">
@@ -349,7 +444,7 @@ export default function RoomsPage() {
                 </SelectContent>
               </Select>
             </div>
-            <Button type="submit" className="w-full shadow-lg shadow-primary/20">Update Room</Button>
+            <Button type="submit" className="w-full btn-premium">Update Room</Button>
           </form>
         </DialogContent>
       </Dialog>

@@ -8,7 +8,15 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
-import { Plus, Search, CalendarDays, ArrowUpDown, Edit, Trash2 } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Plus, Search, CalendarDays, ArrowUpDown, Edit, Trash2, MoreVertical, CheckCircle, XCircle } from "lucide-react"
 import { useState } from "react"
 import { useSession } from "next-auth/react"
 import { toast } from "sonner"
@@ -85,16 +93,29 @@ export default function AppointmentsPage() {
       toast.error("Please fill in all required fields")
       return
     }
-    const res = await fetch("/api/appointments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
-    if (res.ok) {
-      toast.success("Appointment scheduled successfully")
-      mutate()
-      setOpen(false)
-      resetForm()
-    } else {
-      const err = await res.json().catch(() => ({}))
-      toast.error(err.error || "Failed to schedule appointment")
-    }
+
+    const promise = fetch("/api/appointments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || "Failed to schedule appointment")
+      }
+      return res.json()
+    })
+
+    toast.promise(promise, {
+      loading: "Scheduling appointment...",
+      success: () => {
+        mutate()
+        setOpen(false)
+        resetForm()
+        return "Appointment scheduled successfully"
+      },
+      error: (err) => err.message,
+    })
   }
 
   async function handleEdit(e: React.FormEvent<HTMLFormElement>) {
@@ -110,32 +131,71 @@ export default function AppointmentsPage() {
       status: formStatus,
       notes: form.get("notes"),
     }
-    const res = await fetch(`/api/appointments?id=${selectedAppointment.id}`, {
+    const promise = fetch(`/api/appointments?id=${selectedAppointment.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
+    }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || "Failed to update appointment")
+      }
+      return res.json()
     })
-    if (res.ok) {
-      toast.success("Appointment updated successfully")
-      mutate()
-      setEditOpen(false)
-      resetForm()
-    } else {
-      const err = await res.json().catch(() => ({}))
-      toast.error(err.error || "Failed to update appointment")
-    }
+
+    toast.promise(promise, {
+      loading: "Updating appointment...",
+      success: () => {
+        mutate()
+        setEditOpen(false)
+        resetForm()
+        return "Appointment updated successfully"
+      },
+      error: (err) => err.message,
+    })
   }
 
   async function handleDelete(id: number) {
     if (!confirm("Are you sure you want to delete this appointment?")) return
-    const res = await fetch(`/api/appointments?id=${id}`, { method: "DELETE" })
-    if (res.ok) {
-      toast.success("Appointment deleted successfully")
-      mutate()
-    } else {
-      const err = await res.json().catch(() => ({}))
-      toast.error(err.error || "Failed to delete appointment")
-    }
+    const promise = fetch(`/api/appointments?id=${id}`, { method: "DELETE" }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || "Failed to delete appointment")
+      }
+      return res.json()
+    })
+
+    toast.promise(promise, {
+      loading: "Deleting appointment...",
+      success: () => {
+        mutate()
+        return "Appointment deleted successfully"
+      },
+      error: (err) => err.message,
+    })
+  }
+
+  async function handleStatusUpdate(id: number, newStatus: string) {
+    const promise = fetch(`/api/appointments?id=${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: newStatus })
+    }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || "Failed to update status")
+      }
+      return res.json()
+    })
+
+    toast.promise(promise, {
+      loading: `Marking as ${newStatus}...`,
+      success: () => {
+        mutate()
+        return `Appointment ${newStatus}`
+      },
+      error: (err) => err.message,
+    })
   }
 
   function openEdit(a: any) {
@@ -174,9 +234,9 @@ export default function AppointmentsPage() {
         {canAdd(userRole, "appointments") && (
           <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
             <DialogTrigger asChild>
-              <Button className="gap-2"><Plus className="h-4 w-4" />Book Appointment</Button>
+              <Button className="gap-2 btn-premium"><Plus className="h-4 w-4" />Book Appointment</Button>
             </DialogTrigger>
-            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg glass-dialog">
               <DialogHeader><DialogTitle>Book New Appointment</DialogTitle></DialogHeader>
               <form onSubmit={handleAdd} className="grid gap-4 pt-4">
                 <div className="space-y-2">
@@ -231,7 +291,7 @@ export default function AppointmentsPage() {
                   </Select>
                 </div>
                 <div className="space-y-2"><Label>Notes</Label><Textarea name="notes" rows={2} /></div>
-                <Button type="submit" className="w-full">Book Appointment</Button>
+                <Button type="submit" className="w-full btn-premium">Book Appointment</Button>
               </form>
             </DialogContent>
           </Dialog>
@@ -282,18 +342,42 @@ export default function AppointmentsPage() {
                   </td>
                   {(canEdit(userRole, "appointments") || canDelete(userRole, "appointments")) && (
                     <td className="px-4 py-3 text-right">
-                      <div className="flex justify-end gap-2">
-                        {canEdit(userRole, "appointments") && (
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => openEdit(a)}>
-                            <Edit className="h-4 w-4" />
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted/50">
+                            <MoreVertical className="h-4 w-4 text-muted-foreground" />
                           </Button>
-                        )}
-                        {canDelete(userRole, "appointments") && (
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(a.id as number)}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48 glass-dialog">
+                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          {canEdit(userRole, "appointments") && (
+                            <>
+                              <DropdownMenuItem onClick={() => openEdit(a)} className="cursor-pointer">
+                                <Edit className="mr-2 h-4 w-4" /> Edit Appointment
+                              </DropdownMenuItem>
+                              {a.status === "scheduled" && (
+                                <>
+                                  <DropdownMenuItem onClick={() => handleStatusUpdate(a.id as number, "completed")} className="cursor-pointer text-emerald-600 focus:text-emerald-600">
+                                    <CheckCircle className="mr-2 h-4 w-4" /> Mark Completed
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleStatusUpdate(a.id as number, "cancelled")} className="cursor-pointer text-rose-600 focus:text-rose-600">
+                                    <XCircle className="mr-2 h-4 w-4" /> Cancel Appointment
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                            </>
+                          )}
+                          {canDelete(userRole, "appointments") && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => handleDelete(a.id as number)} className="cursor-pointer text-destructive focus:text-destructive">
+                                <Trash2 className="mr-2 h-4 w-4" /> Delete Record
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </td>
                   )}
                 </tr>
@@ -302,7 +386,7 @@ export default function AppointmentsPage() {
           </table>
 
           <Dialog open={editOpen} onOpenChange={(v) => { setEditOpen(v); if (!v) resetForm(); }}>
-            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg glass-dialog">
               <DialogHeader><DialogTitle>Edit Appointment</DialogTitle></DialogHeader>
               <form onSubmit={handleEdit} className="grid gap-4 pt-4">
                 <div className="space-y-2">
@@ -371,7 +455,7 @@ export default function AppointmentsPage() {
                   </div>
                 </div>
                 <div className="space-y-2"><Label>Notes</Label><Textarea name="notes" rows={2} defaultValue={selectedAppointment?.notes} /></div>
-                <Button type="submit" className="w-full">Update Appointment</Button>
+                <Button type="submit" className="w-full btn-premium">Update Appointment</Button>
               </form>
             </DialogContent>
           </Dialog>

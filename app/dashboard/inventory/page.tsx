@@ -8,7 +8,15 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Package, Plus, Search, AlertTriangle, CheckCircle, XCircle, ArrowUpDown, Edit, Trash2 } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Package, Plus, Search, AlertTriangle, CheckCircle, XCircle, ArrowUpDown, Edit, Trash2, MoreVertical, ArrowUpCircle, History } from "lucide-react"
 import { useState } from "react"
 import { useSession } from "next-auth/react"
 import { toast } from "sonner"
@@ -86,16 +94,29 @@ export default function InventoryPage() {
       toast.error("Please fill in item name and category")
       return
     }
-    const res = await fetch("/api/inventory", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
-    if (res.ok) {
-      toast.success("Inventory item added successfully")
-      mutate()
-      setOpen(false)
-      resetForm()
-    } else {
-      const err = await res.json().catch(() => ({}))
-      toast.error(err.error || "Failed to add inventory item")
-    }
+
+    const promise = fetch("/api/inventory", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || "Failed to add inventory item")
+      }
+      return res.json()
+    })
+
+    toast.promise(promise, {
+      loading: "Adding item...",
+      success: () => {
+        mutate()
+        setOpen(false)
+        resetForm()
+        return "Item added successfully"
+      },
+      error: (err) => err.message,
+    })
   }
 
   async function handleEdit(e: React.FormEvent<HTMLFormElement>) {
@@ -112,32 +133,72 @@ export default function InventoryPage() {
       expiry_date: form.get("expiry_date") || null,
       status: formStatus,
     }
-    const res = await fetch(`/api/inventory?id=${selectedItem.id}`, {
+    const promise = fetch(`/api/inventory?id=${selectedItem.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
+    }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || "Failed to update item")
+      }
+      return res.json()
     })
-    if (res.ok) {
-      toast.success("Inventory item updated successfully")
-      mutate()
-      setEditOpen(false)
-      resetForm()
-    } else {
-      const err = await res.json().catch(() => ({}))
-      toast.error(err.error || "Failed to update item")
-    }
+
+    toast.promise(promise, {
+      loading: "Updating item...",
+      success: () => {
+        mutate()
+        setEditOpen(false)
+        resetForm()
+        return "Item updated successfully"
+      },
+      error: (err) => err.message,
+    })
   }
 
   async function handleDelete(id: number) {
     if (!confirm("Are you sure you want to delete this inventory item?")) return
-    const res = await fetch(`/api/inventory?id=${id}`, { method: "DELETE" })
-    if (res.ok) {
-      toast.success("Inventory item deleted successfully")
-      mutate()
-    } else {
-      const err = await res.json().catch(() => ({}))
-      toast.error(err.error || "Failed to delete item")
-    }
+    const promise = fetch(`/api/inventory?id=${id}`, { method: "DELETE" }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || "Failed to delete item")
+      }
+      return res.json()
+    })
+
+    toast.promise(promise, {
+      loading: "Deleting item...",
+      success: () => {
+        mutate()
+        return "Item deleted successfully"
+      },
+      error: (err) => err.message,
+    })
+  }
+
+  async function handleQuickRestock(id: number, currentQty: number) {
+    const newQty = Number(currentQty) + 10
+    const promise = fetch(`/api/inventory?id=${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ quantity: newQty, status: "in_stock" })
+    }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || "Quick restock failed")
+      }
+      return res.json()
+    })
+
+    toast.promise(promise, {
+      loading: "Restocking...",
+      success: () => {
+        mutate()
+        return `Restocked +10 units`
+      },
+      error: (err) => err.message,
+    })
   }
 
   function openEdit(item: any) {
@@ -222,9 +283,9 @@ export default function InventoryPage() {
         </div>
         {canAdd(userRole, "inventory") && <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setFormCategory("") }}>
           <DialogTrigger asChild>
-            <Button className="gap-2"><Plus className="h-4 w-4" />Add Item</Button>
+            <Button className="gap-2 btn-premium"><Plus className="h-4 w-4" />Add Item</Button>
           </DialogTrigger>
-          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg glass-dialog">
             <DialogHeader><DialogTitle>Add Inventory Item</DialogTitle></DialogHeader>
             <form onSubmit={handleAdd} className="grid gap-4 pt-4">
               <div className="space-y-2"><Label>Item Name *</Label><Input name="item_name" required /></div>
@@ -250,7 +311,7 @@ export default function InventoryPage() {
               </div>
               <div className="space-y-2"><Label>Supplier</Label><Input name="supplier" /></div>
               <div className="space-y-2"><Label>Expiry Date</Label><Input name="expiry_date" type="date" /></div>
-              <Button type="submit" className="w-full">Add Item</Button>
+              <Button type="submit" className="w-full btn-premium">Add Item</Button>
             </form>
           </DialogContent>
         </Dialog>}
@@ -304,16 +365,40 @@ export default function InventoryPage() {
                     {(canEdit(userRole, "inventory") || canDelete(userRole, "inventory")) && (
                       <td className="px-4 py-3 text-right">
                         <div className="flex justify-end gap-2">
-                          {canEdit(userRole, "inventory") && (
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => openEdit(item)}>
-                              <Edit className="h-4 w-4" />
+                          {(item.status === "low_stock" || item.status === "out_of_stock") && canEdit(userRole, "inventory") && (
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-600 hover:bg-emerald-50" title="Quick Restock" onClick={() => handleQuickRestock(item.id as number, item.quantity as number)}>
+                              <ArrowUpCircle className="h-4 w-4" />
                             </Button>
                           )}
-                          {canDelete(userRole, "inventory") && (
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(item.id as number)}>
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          )}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted/50">
+                                <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-48 glass-dialog">
+                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                              <DropdownMenuSeparator />
+                              {canEdit(userRole, "inventory") && (
+                                <>
+                                  <DropdownMenuItem onClick={() => openEdit(item)} className="cursor-pointer">
+                                    <Edit className="mr-2 h-4 w-4" /> Edit Item
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleQuickRestock(item.id as number, item.quantity as number)} className="cursor-pointer text-emerald-600 focus:text-emerald-600">
+                                    <ArrowUpCircle className="mr-2 h-4 w-4" /> Quick Restock (+10)
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                              {canDelete(userRole, "inventory") && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem onClick={() => handleDelete(item.id as number)} className="cursor-pointer text-destructive focus:text-destructive">
+                                    <Trash2 className="mr-2 h-4 w-4" /> Delete Item
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </td>
                     )}
@@ -324,7 +409,7 @@ export default function InventoryPage() {
           </table>
 
           <Dialog open={editOpen} onOpenChange={(v) => { setEditOpen(v); if (!v) resetForm() }}>
-            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg glass-dialog">
               <DialogHeader><DialogTitle>Edit Inventory Item</DialogTitle></DialogHeader>
               <form onSubmit={handleEdit} className="grid gap-4 pt-4">
                 <div className="space-y-2"><Label>Item Name *</Label><Input name="item_name" defaultValue={selectedItem?.item_name} required /></div>
@@ -363,7 +448,7 @@ export default function InventoryPage() {
                   </div>
                 </div>
                 <div className="space-y-2"><Label>Expiry Date</Label><Input name="expiry_date" type="date" defaultValue={selectedItem?.expiry_date} /></div>
-                <Button type="submit" className="w-full">Update Item</Button>
+                <Button type="submit" className="w-full btn-premium">Update Item</Button>
               </form>
             </DialogContent>
           </Dialog>

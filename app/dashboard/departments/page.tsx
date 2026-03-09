@@ -7,16 +7,26 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Building2, Users, Phone, Plus, Search, Edit, Trash2 } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Building2, Users, Phone, Plus, Search, Edit, Trash2, MoreVertical, Activity, UserCheck, AlertTriangle, Link as LinkIcon } from "lucide-react"
 import { useState } from "react"
 import { useSession } from "next-auth/react"
 import { toast } from "sonner"
+import { useRouter } from "next/navigation"
 import { canAdd, canEdit, canDelete, type UserRole } from "@/lib/role-permissions"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 export default function DepartmentsPage() {
   const { data: session } = useSession()
+  const router = useRouter()
   const userRole = (session?.user as { role?: string })?.role as UserRole | undefined
   const { data: departments, mutate } = useSWR("/api/departments", fetcher, { refreshInterval: 5000, revalidateOnFocus: true })
   const [search, setSearch] = useState("")
@@ -43,16 +53,29 @@ export default function DepartmentsPage() {
       toast.error("Please fill in the department name")
       return
     }
-    const res = await fetch("/api/departments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
-    if (res.ok) {
-      toast.success("Department added successfully")
-      mutate()
-      setOpen(false)
-      resetForm()
-    } else {
-      const err = await res.json().catch(() => ({}))
-      toast.error(err.error || "Failed to add department")
-    }
+
+    const promise = fetch("/api/departments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || "Failed to add department")
+      }
+      return res.json()
+    })
+
+    toast.promise(promise, {
+      loading: "Creating department...",
+      success: () => {
+        mutate()
+        setOpen(false)
+        resetForm()
+        return "Department added successfully"
+      },
+      error: (err) => err.message,
+    })
   }
 
   async function handleEdit(e: React.FormEvent<HTMLFormElement>) {
@@ -64,32 +87,48 @@ export default function DepartmentsPage() {
       head_doctor: form.get("head_doctor"),
       phone: form.get("phone"),
     }
-    const res = await fetch(`/api/departments?id=${selectedDept.id}`, {
+    const promise = fetch(`/api/departments?id=${selectedDept.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
+    }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || "Failed to update department")
+      }
+      return res.json()
     })
-    if (res.ok) {
-      toast.success("Department updated successfully")
-      mutate()
-      setEditOpen(false)
-      resetForm()
-    } else {
-      const err = await res.json().catch(() => ({}))
-      toast.error(err.error || "Failed to update department")
-    }
+
+    toast.promise(promise, {
+      loading: "Updating department...",
+      success: () => {
+        mutate()
+        setEditOpen(false)
+        resetForm()
+        return "Department updated successfully"
+      },
+      error: (err) => err.message,
+    })
   }
 
   async function handleDelete(id: number) {
     if (!confirm("Are you sure? This may affect associated staff.")) return
-    const res = await fetch(`/api/departments?id=${id}`, { method: "DELETE" })
-    if (res.ok) {
-      toast.success("Department deleted successfully")
-      mutate()
-    } else {
-      const err = await res.json().catch(() => ({}))
-      toast.error(err.error || "Failed to delete department")
-    }
+    const promise = fetch(`/api/departments?id=${id}`, { method: "DELETE" }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || "Failed to delete department")
+      }
+      return res.json()
+    })
+
+    toast.promise(promise, {
+      loading: "Removing department...",
+      success: () => {
+        mutate()
+        return "Department deleted successfully"
+      },
+      error: (err) => err.message,
+    })
   }
 
   function openEdit(dept: any) {
@@ -106,9 +145,9 @@ export default function DepartmentsPage() {
         </div>
         {canAdd(userRole, "departments") && <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button className="gap-2 shadow-lg shadow-primary/20"><Plus className="h-4 w-4" />Add Department</Button>
+            <Button className="gap-2 btn-premium"><Plus className="h-4 w-4" />Add Department</Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-lg">
+          <DialogContent className="sm:max-w-lg glass-dialog">
             <DialogHeader><DialogTitle>Add New Department</DialogTitle></DialogHeader>
             <form onSubmit={handleAdd} className="grid gap-4 pt-4">
               <div className="space-y-2"><Label>Department Name *</Label><Input name="name" required className="border-border/50" /></div>
@@ -117,7 +156,7 @@ export default function DepartmentsPage() {
                 <div className="space-y-2"><Label>Head Doctor</Label><Input name="head_doctor" className="border-border/50" /></div>
                 <div className="space-y-2"><Label>Phone</Label><Input name="phone" className="border-border/50" /></div>
               </div>
-              <Button type="submit" className="w-full shadow-lg shadow-primary/20">Add Department</Button>
+              <Button type="submit" className="w-full btn-premium">Add Department</Button>
             </form>
           </DialogContent>
         </Dialog>}
@@ -139,47 +178,82 @@ export default function DepartmentsPage() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filtered?.map((dept: Record<string, string | number>, index: number) => (
-            <Card key={dept.id} className="animate-fade-in group border-border/50 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md hover:shadow-primary/5" style={{ animationDelay: `${index * 60}ms` }}>
-              <CardHeader className="pb-3 px-6 pt-6">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-lg text-foreground">{dept.name}</CardTitle>
-                    <p className="mt-1 text-sm text-muted-foreground">{dept.description}</p>
+            <Card key={dept.id} className="animate-fade-in group glass-card transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-primary/10" style={{ animationDelay: `${index * 60}ms` }}>
+              <CardHeader className="pb-3 px-6 pt-6 relative">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-xl font-bold text-foreground truncate">{dept.name}</CardTitle>
+                    <p className="mt-1 text-sm text-muted-foreground line-clamp-2">{dept.description || "No description provided."}</p>
                   </div>
-                  <div className="flex shrink-0 h-10 w-10 items-center justify-center rounded-lg bg-primary/10 transition-transform duration-300 group-hover:scale-110">
-                    <Building2 className="h-5 w-5 text-primary" />
+                  <div className="flex shrink-0 h-12 w-12 items-center justify-center rounded-xl bg-primary/10 transition-transform duration-300 group-hover:scale-110">
+                    <Building2 className="h-6 w-6 text-primary" />
                   </div>
                 </div>
-                <div className="absolute right-2 top-14 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                  {canEdit(userRole, "departments") && (
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => openEdit(dept)}>
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                  )}
-                  {canDelete(userRole, "departments") && (
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(dept.id as number)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
+                {(canEdit(userRole, "departments") || canDelete(userRole, "departments")) && (
+                  <div className="absolute right-4 top-4">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted/50">
+                          <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-56 glass-dialog">
+                        <DropdownMenuLabel>Department Actions</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        {canEdit(userRole, "departments") && (
+                          <>
+                            <DropdownMenuItem onClick={() => openEdit(dept)} className="cursor-pointer font-medium">
+                              <Edit className="mr-2 h-4 w-4" /> Edit Details
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => toast.info(`Viewing capacity for ${dept.name}...`)} className="cursor-pointer">
+                              <Activity className="mr-2 h-4 w-4 text-blue-600" /> View Capacity
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => router.push(`/dashboard/staff?dept=${dept.id}`)} className="cursor-pointer">
+                              <LinkIcon className="mr-2 h-4 w-4 text-emerald-600" /> Manage Doctors
+                            </DropdownMenuItem>
+                          </>
+                        )}
+                        <DropdownMenuItem onClick={() => toast.info("Opening analytics dashboard...")} className="cursor-pointer">
+                          <UserCheck className="mr-2 h-4 w-4" /> Dept. Analytics
+                        </DropdownMenuItem>
+                        {canDelete(userRole, "departments") && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => handleDelete(dept.id as number)} className="cursor-pointer text-destructive focus:text-destructive font-medium">
+                              <Trash2 className="mr-2 h-4 w-4" /> Close Department
+                            </DropdownMenuItem>
+                          </>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                )}
               </CardHeader>
-              <CardContent className="space-y-3 px-6 pb-6">
-                {dept.head_doctor && (
-                  <div className="text-sm">
-                    <span className="text-muted-foreground">Head: </span>
-                    <span className="font-medium text-foreground">{dept.head_doctor}</span>
+              <CardContent className="space-y-4 px-6 pb-6 pt-0">
+                <div className="grid gap-2">
+                  {dept.head_doctor && (
+                    <div className="flex items-center gap-2 text-sm bg-muted/30 p-2 rounded-lg">
+                      <Users className="h-3.5 w-3.5 text-primary" />
+                      <span className="text-muted-foreground font-medium">Head: </span>
+                      <span className="font-bold text-foreground">{dept.head_doctor}</span>
+                    </div>
+                  )}
+                  {dept.phone && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground px-2">
+                      <Phone className="h-3.5 w-3.5 shrink-0" />
+                      <span className="font-medium">{dept.phone}</span>
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center justify-between border-t border-border/20 pt-4">
+                  <div className="flex items-center gap-2">
+                    <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-500">Operational</span>
                   </div>
-                )}
-                {dept.phone && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Phone className="h-3.5 w-3.5" />
-                    <span>{dept.phone}</span>
-                  </div>
-                )}
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary" className="gap-1">
+                  <Badge variant="secondary" className="gap-1 bg-primary/5 text-primary border-none font-bold">
                     <Users className="h-3 w-3" />
-                    {dept.staff_count} staff
+                    {dept.staff_count} Staff
                   </Badge>
                 </div>
               </CardContent>
@@ -189,7 +263,7 @@ export default function DepartmentsPage() {
       )}
 
       <Dialog open={editOpen} onOpenChange={(v) => { setEditOpen(v); if (!v) resetForm() }}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg glass-dialog">
           <DialogHeader><DialogTitle>Edit Department</DialogTitle></DialogHeader>
           <form onSubmit={handleEdit} className="grid gap-4 pt-4">
             <div className="space-y-2">
@@ -210,7 +284,7 @@ export default function DepartmentsPage() {
                 <Input name="phone" defaultValue={selectedDept?.phone} className="border-border/50" />
               </div>
             </div>
-            <Button type="submit" className="w-full shadow-lg shadow-primary/20">Update Department</Button>
+            <Button type="submit" className="w-full btn-premium">Update Department</Button>
           </form>
         </DialogContent>
       </Dialog>
