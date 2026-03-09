@@ -44,8 +44,8 @@ export default function DashboardLayout({
       <main className="min-h-screen transition-all duration-300 lg:ml-[260px]">
         <header className="sticky top-0 z-30 border-b border-border/50 bg-background/80 backdrop-blur-xl">
           <div className="flex h-16 items-center gap-4 px-6">
-            <div className="ml-10 flex items-center gap-3 lg:ml-0">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
+            <div className="ml-10 flex items-center gap-3 lg:ml-0 animate-header-slide-in">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 transition-transform duration-300 hover:scale-110">
                 <Icon className="h-4.5 w-4.5 text-primary" />
               </div>
               <div>

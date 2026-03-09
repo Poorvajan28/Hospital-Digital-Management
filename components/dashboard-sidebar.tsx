@@ -110,8 +110,10 @@ export function DashboardSidebar() {
                 </button>
               </div>
               <nav className="flex-1 space-y-1 overflow-y-auto p-3">
-                {navItems.map((item) => (
-                  <NavLink key={item.href} item={item} collapsed={false} onClick={() => setMobileOpen(false)} />
+                {navItems.map((item, index) => (
+                  <div key={item.href} className="animate-slide-in-left" style={{ animationDelay: `${index * 40}ms` }}>
+                    <NavLink item={item} collapsed={false} onClick={() => setMobileOpen(false)} />
+                  </div>
                 ))}
               </nav>
               <div className="border-t border-sidebar-border p-4">
@@ -152,8 +154,10 @@ export function DashboardSidebar() {
         </div>
 
         <nav className="flex-1 space-y-1 overflow-y-auto p-3">
-          {navItems.map((item) => (
-            <NavLink key={item.href} item={item} collapsed={collapsed} />
+          {navItems.map((item, index) => (
+            <div key={item.href} className="animate-slide-in-left" style={{ animationDelay: `${index * 50}ms` }}>
+              <NavLink item={item} collapsed={collapsed} />
+            </div>
           ))}
         </nav>
 

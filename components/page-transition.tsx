@@ -1,26 +1,33 @@
 "use client"
 
 import { usePathname } from "next/navigation"
-import { useEffect, useState, type ReactNode } from "react"
+import { useEffect, useState, useRef, type ReactNode } from "react"
 
 export function PageTransition({ children }: { children: ReactNode }) {
     const pathname = usePathname()
-    const [isVisible, setIsVisible] = useState(false)
+    const [phase, setPhase] = useState<"enter" | "idle">("enter")
+    const prevPathname = useRef(pathname)
 
     useEffect(() => {
-        setIsVisible(false)
-        // Small delay for the exit animation
-        const timer = requestAnimationFrame(() => {
-            setIsVisible(true)
-        })
-        return () => cancelAnimationFrame(timer)
+        if (pathname !== prevPathname.current) {
+            prevPathname.current = pathname
+            setPhase("enter")
+            const timer = setTimeout(() => setPhase("idle"), 500)
+            return () => clearTimeout(timer)
+        }
     }, [pathname])
+
+    // Initial mount
+    useEffect(() => {
+        const timer = setTimeout(() => setPhase("idle"), 500)
+        return () => clearTimeout(timer)
+    }, [])
 
     return (
         <div
-            className={`transition-all duration-300 ease-out ${isVisible
-                    ? "opacity-100 translate-y-0 scale-100"
-                    : "opacity-0 translate-y-3 scale-[0.99]"
+            className={`transition-all duration-[450ms] ease-[cubic-bezier(0.16,1,0.3,1)] ${phase === "enter"
+                    ? "animate-page-enter"
+                    : ""
                 }`}
         >
             {children}

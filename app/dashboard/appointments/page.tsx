@@ -204,8 +204,8 @@ export default function AppointmentsPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered?.map((a: Record<string, string | number>) => (
-                <tr key={a.id} className="border-b border-border/50 transition-colors last:border-0 hover:bg-muted/30">
+              {filtered?.map((a: Record<string, string | number>, index: number) => (
+                <tr key={a.id} className="animate-row-enter border-b border-border/50 transition-colors last:border-0 hover:bg-muted/30" style={{ animationDelay: `${index * 40}ms` }}>
                   <td className="px-4 py-3 font-medium text-foreground">{a.patient_name || "—"}</td>
                   <td className="px-4 py-3 text-foreground">{a.doctor_name ? `Dr. ${a.doctor_name}` : "—"}</td>
                   <td className="px-4 py-3 text-muted-foreground">{a.department_name || "—"}</td>

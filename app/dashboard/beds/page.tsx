@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
+import { AnimatedCounter } from "@/components/animated-counter"
 import { BedDouble, Search, DoorOpen } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
@@ -54,7 +55,7 @@ export default function BedManagementPage() {
                         </div>
                     </CardHeader>
                     <CardContent>
-                        <p className="text-3xl font-extrabold tracking-tight text-foreground">{totalBeds}</p>
+                        <p className="text-3xl font-extrabold tracking-tight text-foreground"><AnimatedCounter value={totalBeds} /></p>
                         <p className="mt-1 text-xs text-muted-foreground">across {rooms?.length || 0} rooms</p>
                     </CardContent>
                 </Card>
@@ -66,7 +67,7 @@ export default function BedManagementPage() {
                         </div>
                     </CardHeader>
                     <CardContent>
-                        <p className="text-3xl font-extrabold tracking-tight text-[#059669]">{availableBeds}</p>
+                        <p className="text-3xl font-extrabold tracking-tight text-[#059669]"><AnimatedCounter value={availableBeds} /></p>
                         <p className="mt-1 text-xs text-muted-foreground">beds ready</p>
                     </CardContent>
                 </Card>
@@ -78,7 +79,7 @@ export default function BedManagementPage() {
                         </div>
                     </CardHeader>
                     <CardContent>
-                        <p className="text-3xl font-extrabold tracking-tight text-[#2563eb]">{occupiedBeds}</p>
+                        <p className="text-3xl font-extrabold tracking-tight text-[#2563eb]"><AnimatedCounter value={occupiedBeds} /></p>
                         <Progress value={totalBeds > 0 ? (occupiedBeds / totalBeds) * 100 : 0} className="mt-2 h-2" />
                     </CardContent>
                 </Card>
@@ -90,7 +91,7 @@ export default function BedManagementPage() {
                         </div>
                     </CardHeader>
                     <CardContent>
-                        <p className="text-3xl font-extrabold tracking-tight text-[#d97706]">{maintenanceRooms}</p>
+                        <p className="text-3xl font-extrabold tracking-tight text-[#d97706]"><AnimatedCounter value={maintenanceRooms} /></p>
                         <p className="mt-1 text-xs text-muted-foreground">rooms</p>
                     </CardContent>
                 </Card>

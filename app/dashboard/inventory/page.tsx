@@ -13,6 +13,7 @@ import { useState } from "react"
 import { useSession } from "next-auth/react"
 import { toast } from "sonner"
 import { canAdd, type UserRole } from "@/lib/role-permissions"
+import { AnimatedCounter } from "@/components/animated-counter"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -99,7 +100,7 @@ export default function InventoryPage() {
               <Package className="h-4 w-4 text-primary" />
             </div>
           </CardHeader>
-          <CardContent><p className="text-3xl font-extrabold tracking-tight text-foreground">{totalItems}</p></CardContent>
+          <CardContent><p className="text-3xl font-extrabold tracking-tight text-foreground"><AnimatedCounter value={totalItems} /></p></CardContent>
         </Card>
         <Card className="animate-fade-in group border-border/50 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/5 [animation-delay:100ms]">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -108,7 +109,7 @@ export default function InventoryPage() {
               <AlertTriangle className="h-4 w-4 text-[#d97706]" />
             </div>
           </CardHeader>
-          <CardContent><p className="text-3xl font-extrabold tracking-tight text-foreground">{lowStock}</p></CardContent>
+          <CardContent><p className="text-3xl font-extrabold tracking-tight text-foreground"><AnimatedCounter value={lowStock} /></p></CardContent>
         </Card>
         <Card className="animate-fade-in group border-border/50 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/5 [animation-delay:200ms]">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -117,7 +118,7 @@ export default function InventoryPage() {
               <XCircle className="h-4 w-4 text-[#dc2626]" />
             </div>
           </CardHeader>
-          <CardContent><p className="text-3xl font-extrabold tracking-tight text-foreground">{outOfStock}</p></CardContent>
+          <CardContent><p className="text-3xl font-extrabold tracking-tight text-foreground"><AnimatedCounter value={outOfStock} /></p></CardContent>
         </Card>
         <Card className="animate-fade-in group border-border/50 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/5 [animation-delay:300ms]">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -126,7 +127,7 @@ export default function InventoryPage() {
               <Package className="h-4 w-4 text-[#059669]" />
             </div>
           </CardHeader>
-          <CardContent><p className="text-3xl font-extrabold tracking-tight text-foreground">₹{totalValue.toLocaleString("en-IN")}</p></CardContent>
+          <CardContent><p className="text-3xl font-extrabold tracking-tight text-foreground"><AnimatedCounter value={totalValue} prefix="₹" /></p></CardContent>
         </Card>
       </div>
 

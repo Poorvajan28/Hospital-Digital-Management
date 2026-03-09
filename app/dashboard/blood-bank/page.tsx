@@ -15,6 +15,7 @@ import { useState } from "react"
 import { useSession } from "next-auth/react"
 import { toast } from "sonner"
 import { canAdd, type UserRole } from "@/lib/role-permissions"
+import { AnimatedCounter } from "@/components/animated-counter"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -91,7 +92,7 @@ export default function BloodBankPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-extrabold tracking-tight text-foreground">{totalUnits}</p>
+            <p className="text-3xl font-extrabold tracking-tight text-foreground"><AnimatedCounter value={totalUnits} /></p>
             <p className="mt-1 text-xs text-muted-foreground">Across all blood groups</p>
           </CardContent>
         </Card>
@@ -117,7 +118,7 @@ export default function BloodBankPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-extrabold tracking-tight text-foreground">{criticalStock.length}</p>
+            <p className="text-3xl font-extrabold tracking-tight text-foreground"><AnimatedCounter value={criticalStock.length} /></p>
             <p className="mt-1 text-xs text-muted-foreground">
               {criticalStock.length > 0
                 ? `Low: ${criticalStock.map((s: { blood_group: string }) => s.blood_group).join(", ")}`

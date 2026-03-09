@@ -19,6 +19,7 @@ import {
     Wrench,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { AnimatedCounter } from "@/components/animated-counter"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -104,7 +105,7 @@ export function ResourceManagerDashboard() {
                             <div className="h-10 animate-pulse rounded bg-muted" />
                         ) : (
                             <>
-                                <p className="text-3xl font-extrabold tracking-tight text-foreground">{bedOccupancyRate}%</p>
+                                <p className="text-3xl font-extrabold tracking-tight text-foreground"><AnimatedCounter value={bedOccupancyRate} suffix="%" /></p>
                                 <Progress value={bedOccupancyRate} className="mt-3 h-2" />
                                 <p className="mt-2 text-xs text-muted-foreground">
                                     {availableBeds} Available · {occupiedBeds} Occupied
@@ -126,7 +127,7 @@ export function ResourceManagerDashboard() {
                             <div className="h-10 animate-pulse rounded bg-muted" />
                         ) : (
                             <>
-                                <p className="text-3xl font-extrabold tracking-tight text-foreground">{inStockEquipment}</p>
+                                <p className="text-3xl font-extrabold tracking-tight text-foreground"><AnimatedCounter value={inStockEquipment} /></p>
                                 <p className="mt-1 text-xs text-muted-foreground">
                                     Available out of {totalEquipment} equipment
                                 </p>
@@ -150,7 +151,7 @@ export function ResourceManagerDashboard() {
                             <div className="h-10 animate-pulse rounded bg-muted" />
                         ) : (
                             <>
-                                <p className="text-3xl font-extrabold tracking-tight text-foreground">{totalBloodUnits}</p>
+                                <p className="text-3xl font-extrabold tracking-tight text-foreground"><AnimatedCounter value={totalBloodUnits} /></p>
                                 <p className="mt-1 text-xs text-muted-foreground">Total units available</p>
                                 {criticalBlood > 0 && (
                                     <p className="mt-1 text-xs font-medium text-[#dc2626]">{criticalBlood} critical groups</p>
@@ -172,7 +173,7 @@ export function ResourceManagerDashboard() {
                             <div className="h-10 animate-pulse rounded bg-muted" />
                         ) : (
                             <>
-                                <p className="text-3xl font-extrabold tracking-tight text-foreground">{activeStaff}</p>
+                                <p className="text-3xl font-extrabold tracking-tight text-foreground"><AnimatedCounter value={activeStaff} /></p>
                                 <p className="mt-1 text-xs text-muted-foreground">{onCallStaff} on leave</p>
                             </>
                         )}

@@ -14,6 +14,7 @@ import { useState } from "react"
 import { useSession } from "next-auth/react"
 import { toast } from "sonner"
 import { canAdd, type UserRole } from "@/lib/role-permissions"
+import { AnimatedCounter } from "@/components/animated-counter"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -94,7 +95,7 @@ export default function RoomsPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-extrabold tracking-tight text-foreground">{rooms?.length || 0}</p>
+            <p className="text-3xl font-extrabold tracking-tight text-foreground"><AnimatedCounter value={rooms?.length || 0} /></p>
             <p className="mt-1 text-xs text-muted-foreground">{availableRooms} available</p>
           </CardContent>
         </Card>
@@ -106,7 +107,7 @@ export default function RoomsPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-extrabold tracking-tight text-foreground">{totalBeds}</p>
+            <p className="text-3xl font-extrabold tracking-tight text-foreground"><AnimatedCounter value={totalBeds} /></p>
             <p className="mt-1 text-xs text-muted-foreground">{totalBeds - occupiedBeds} available</p>
           </CardContent>
         </Card>
