@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Textarea } from "@/components/ui/textarea"
 import { Plus, Search, FileText, Edit, Trash2, MoreVertical, Eye, Share2, Download, CheckCircle2, Activity } from "lucide-react"
-import { useState } from "react"
+import { useState, Suspense } from "react"
 import { useSession } from "next-auth/react"
 import { toast } from "sonner"
 import { useSearchParams } from "next/navigation"
@@ -26,7 +26,7 @@ import { maskPII } from "@/lib/privacy"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
-export default function MedicalRecordsPage() {
+function MedicalRecordsPageContent() {
   const { data: session } = useSession()
   const searchParams = useSearchParams()
   const patientIdParam = searchParams.get("patientId")
@@ -398,5 +398,13 @@ export default function MedicalRecordsPage() {
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+export default function MedicalRecordsPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-center text-muted-foreground animate-pulse">Loading medical records...</div>}>
+      <MedicalRecordsPageContent />
+    </Suspense>
   )
 }

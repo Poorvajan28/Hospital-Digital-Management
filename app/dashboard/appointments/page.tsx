@@ -17,7 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Plus, Search, CalendarDays, ArrowUpDown, Edit, Trash2, MoreVertical, CheckCircle, XCircle } from "lucide-react"
-import { useState } from "react"
+import { useState, Suspense } from "react"
 import { useSession } from "next-auth/react"
 import { toast } from "sonner"
 import { useSearchParams, useRouter } from "next/navigation"
@@ -40,7 +40,7 @@ const typeColors: Record<string, string> = {
   surgery: "bg-[#d97706]/10 text-[#d97706]",
 }
 
-export default function AppointmentsPage() {
+function AppointmentsPageContent() {
   const { data: session } = useSession()
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -488,5 +488,13 @@ export default function AppointmentsPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function AppointmentsPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-center text-muted-foreground animate-pulse">Loading appointments data...</div>}>
+      <AppointmentsPageContent />
+    </Suspense>
   )
 }
